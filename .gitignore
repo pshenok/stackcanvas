@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.stackcanvas/
+*.tfstate
+*.tfstate.backup
+.terraform/
+test-results/
+playwright-report/
+.superpowers/
