@@ -1,14 +1,17 @@
 {
   "name": "stackcanvas-monorepo",
   "private": true,
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.19.0",
     "typescript": "^5.5.0",
-    "vitest": "^3.0.0",
-    "tsx": "^4.19.0"
+    "vitest": "^3.0.0"
   }
 }
