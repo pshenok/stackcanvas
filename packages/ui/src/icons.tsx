@@ -2,8 +2,8 @@ import type { JSX } from 'react'
 
 const glyphFor = (type: string): 'network' | 'compute' | 'database' | 'storage' | 'security' | 'messaging' | 'generic' => {
   if (/vpc|subnet|route53|cloudfront|lb|apigateway|nat|gateway/.test(type)) return 'network'
-  if (/instance$|autoscaling|ecs|eks|lambda|launch/.test(type)) return 'compute'
   if (/db_|dynamodb|elasticache|rds/.test(type)) return 'database'
+  if (/instance$|autoscaling|ecs|eks|lambda|launch/.test(type)) return 'compute'
   if (/s3|ecr|log_group|efs/.test(type)) return 'storage'
   if (/iam|security_group|kms/.test(type)) return 'security'
   if (/sqs|sns|eventbridge|kinesis/.test(type)) return 'messaging'
