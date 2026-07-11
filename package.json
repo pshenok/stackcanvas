@@ -6,9 +6,11 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "e2e": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@types/node": "^26.1.1",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0",

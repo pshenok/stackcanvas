@@ -1,5 +1,6 @@
 node_modules/
 dist/
+packages/mcp/ui-dist/
 .stackcanvas/
 *.tfstate
 *.tfstate.backup
