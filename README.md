@@ -20,10 +20,6 @@ localhost, reading your local state and plan.
 
 ## Install (Claude Code)
 
-    claude plugin add stackcanvas
-
-or add the MCP server manually:
-
     claude mcp add stackcanvas -- npx -y stackcanvas
 
 Then, inside a repo with Terraform:
@@ -41,10 +37,7 @@ Then, inside a repo with Terraform:
 
 ## Demo
 
-`examples/demo` contains a small AWS config. Run `terraform init && terraform
-plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json`
-there (no apply needed, no AWS account touched by plan with these resources
-until refresh) and open the canvas to see create-highlighting.
+`examples/demo` contains a small AWS config. Run `terraform init && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json` there and open the canvas to see create-highlighting. `plan` does not create or modify any resources — nothing is provisioned until `terraform apply` (note: the AWS provider still needs credentials and makes read-only API calls during plan).
 
 ## Development
 
