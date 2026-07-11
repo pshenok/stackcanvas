@@ -1,4 +1,5 @@
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import net from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test } from 'vitest'
@@ -9,7 +10,20 @@ const stateFixture = readFileSync(
 )
 
 let server: CanvasServer
-afterEach(async () => { await server?.stop() })
+let rawServer: net.Server | undefined
+afterEach(async () => {
+  await server?.stop()
+  if (rawServer) await new Promise<void>(resolve => rawServer!.close(() => resolve()))
+  rawServer = undefined
+})
+
+function occupyPort(port: number): Promise<net.Server> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer()
+    srv.once('error', reject)
+    srv.listen(port, '127.0.0.1', () => resolve(srv))
+  })
+}
 
 function makeDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'sc-'))
@@ -64,4 +78,23 @@ test('path traversal attack protection', async () => {
   expect(res2.status).toBe(200)
   expect(body2).toBe('<!doctype html>ok')
   expect(body2).not.toMatch(/^root:/)
+})
+
+test('auto-selects a different port when the default is occupied', async () => {
+  rawServer = await occupyPort(4680)
+  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture })
+  const { port, url } = await server.start()
+  expect(port).not.toBe(4680)
+  const res = await fetch(`${url}/api/graph`)
+  expect(res.status).toBe(200)
+})
+
+test('rejects with EADDRINUSE when a fixed port is occupied', async () => {
+  rawServer = await occupyPort(4780)
+  server = new CanvasServer({
+    dir: makeDir(),
+    runTerraformShow: async () => stateFixture,
+    port: 4780,
+  })
+  await expect(server.start()).rejects.toThrow(/EADDRINUSE/)
 })
