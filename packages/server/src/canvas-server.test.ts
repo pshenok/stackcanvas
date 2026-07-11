@@ -44,3 +44,24 @@ test('binds localhost only', async () => {
   const { url } = await server.start()
   expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
 })
+
+test('path traversal attack protection', async () => {
+  const uiDir = mkdtempSync(join(tmpdir(), 'ui-'))
+  writeFileSync(join(uiDir, 'index.html'), '<!doctype html>ok')
+  server = new CanvasServer({ dir: makeDir(), uiDist: uiDir, runTerraformShow: async () => stateFixture })
+  const { url } = await server.start()
+
+  // Test encoded traversal
+  const res1 = await fetch(`${url}/..%2f..%2f..%2fetc%2fpasswd`)
+  const body1 = await res1.text()
+  expect(res1.status).toBe(200)
+  expect(body1).toBe('<!doctype html>ok')
+  expect(body1).not.toMatch(/^root:/)
+
+  // Test unencoded traversal
+  const res2 = await fetch(`${url}/../../../../etc/passwd`)
+  const body2 = await res2.text()
+  expect(res2.status).toBe(200)
+  expect(body2).toBe('<!doctype html>ok')
+  expect(body2).not.toMatch(/^root:/)
+})

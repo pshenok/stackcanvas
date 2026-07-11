@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { extname, join } from 'node:path'
+import { extname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
@@ -80,11 +80,13 @@ export class CanvasServer {
     app.get('/api/graph', c => c.json(this.graph))
     app.get('/api/meta', c => c.json({ dir: this.dir, stale: this.stale }))
     if (this.uiDist) {
-      const dist = this.uiDist
+      const dist = resolve(this.uiDist)
       app.get('*', c => {
-        const reqPath = c.req.path === '/' ? '/index.html' : c.req.path
-        const file = join(dist, reqPath)
-        if (existsSync(file) && statSync(file).isFile()) {
+        const decoded = decodeURIComponent(c.req.path)
+        const reqPath = decoded === '/' ? '/index.html' : decoded
+        const file = resolve(dist, '.' + reqPath)
+        const contained = file === dist || file.startsWith(dist + sep)
+        if (contained && existsSync(file) && statSync(file).isFile()) {
           return c.body(readFileSync(file), 200, {
             'content-type': MIME[extname(file)] ?? 'application/octet-stream',
           })
@@ -96,6 +98,7 @@ export class CanvasServer {
   }
 
   async start(): Promise<{ port: number; url: string }> {
+    if (this.httpServer) throw new Error('CanvasServer already started')
     if (!existsSync(this.dir)) throw new Error(`Directory not found: ${this.dir}`)
     await this.refreshGraph()
     const port = this.fixedPort ?? (await findPort(4680))
@@ -107,7 +110,9 @@ export class CanvasServer {
   async stop(): Promise<void> {
     await new Promise<void>(resolve => {
       if (!this.httpServer) return resolve()
-      this.httpServer.close(() => resolve())
+      const srv = this.httpServer as unknown as { closeAllConnections?: () => void; close: (cb: () => void) => void }
+      srv.closeAllConnections?.()
+      srv.close(() => resolve())
     })
     this.httpServer = null
   }
