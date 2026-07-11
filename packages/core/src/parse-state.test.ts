@@ -21,7 +21,7 @@ test('parses managed resources into nodes, skips data sources', () => {
 test('module resources get module groups', () => {
   const g = parseState(fixture)
   expect(g.groups).toContainEqual({ id: 'module.data', label: 'data', kind: 'module', parent: null })
-  expect(g.nodes.find(n => n.id === 'module.data.aws_db_instance.db')!.group).toBe('module.data')
+  expect(g.nodes.find(n => n.id === 'module.data.aws_db_instance.db')!.group).toBe('vpc:aws_vpc.main')
 })
 
 test('sensitive attributes are masked', () => {

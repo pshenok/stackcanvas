@@ -1,4 +1,5 @@
 import type { GraphGroup, GraphModel, GraphNode } from './types.js'
+import { deriveContainment, deriveEdges } from './derive.js'
 
 interface TfResource {
   address: string; mode: string; type: string; name: string
@@ -66,5 +67,7 @@ export function parseState(showJson: unknown): GraphModel {
   const groups: GraphGroup[] = []
   const root = (showJson as { values?: { root_module?: TfModule } } | null)?.values?.root_module
   if (root) walkModule(root, null, nodes, groups)
-  return { nodes, edges: [], groups }
+  const base: GraphModel = { nodes, edges: [], groups }
+  const contained = deriveContainment(base)
+  return { ...contained, edges: deriveEdges(contained.nodes) }
 }
