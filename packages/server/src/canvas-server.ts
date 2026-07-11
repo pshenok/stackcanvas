@@ -5,6 +5,8 @@ import { promisify } from 'node:util'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import type { ServerType } from '@hono/node-server'
+import { WebSocketServer, WebSocket } from 'ws'
+import chokidar, { type FSWatcher } from 'chokidar'
 import {
   applyPlan, parseState,
   type AgentStatus, type GraphModel, type Intent,
@@ -50,6 +52,10 @@ export class CanvasServer {
   private stale: string | null = null
   private httpServer: ServerType | null = null
   private onGraphChange: Array<(g: GraphModel, stale: string | null) => void> = []
+  private wss: WebSocketServer | null = null
+  private watcher: FSWatcher | null = null
+  private planPath: string | null = null
+  private refreshTimer: NodeJS.Timeout | null = null
 
   constructor(opts: CanvasServerOptions) {
     this.dir = opts.dir
@@ -61,6 +67,32 @@ export class CanvasServer {
   getGraph(): GraphModel { return this.graph }
   getStale(): string | null { return this.stale }
   subscribe(fn: (g: GraphModel, stale: string | null) => void): void { this.onGraphChange.push(fn) }
+
+  async loadPlan(path: string): Promise<void> {
+    if (path.endsWith('.json')) this.planJson = JSON.parse(readFileSync(path, 'utf8'))
+    else this.planJson = JSON.parse(await this.run(this.dir, path))
+    this.planPath = path
+    await this.refreshGraph()
+  }
+
+  private scheduleRefresh(): void {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer)
+    this.refreshTimer = setTimeout(() => {
+      void (async () => {
+        const autoPlan = join(this.dir, '.stackcanvas', 'plan.json')
+        if (this.planPath === null && existsSync(autoPlan)) await this.loadPlan(autoPlan)
+        else if (this.planPath?.endsWith('.json') && existsSync(this.planPath))
+          this.planJson = JSON.parse(readFileSync(this.planPath, 'utf8'))
+        await this.refreshGraph()
+      })()
+    }, 300)
+  }
+
+  private broadcast(msg: unknown): void {
+    const data = JSON.stringify(msg)
+    for (const client of this.wss?.clients ?? [])
+      if (client.readyState === WebSocket.OPEN) client.send(data)
+  }
 
   async refreshGraph(): Promise<void> {
     try {
@@ -104,10 +136,37 @@ export class CanvasServer {
     const port = this.fixedPort ?? (await findPort(4680))
     const app = this.buildApp()
     this.httpServer = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' })
+    this.wss = new WebSocketServer({ noServer: true })
+    this.httpServer.on('upgrade', (req, socket, head) => {
+      if (req.url === '/ws') {
+        this.wss!.handleUpgrade(req, socket, head, ws => {
+          ws.send(JSON.stringify({ type: 'graph', graph: this.graph, stale: this.stale }))
+        })
+      } else socket.destroy()
+    })
+    this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
+    // chokidar v4 dropped glob support, so watch `dir` recursively and filter
+    // in `ignored` instead of passing glob patterns (which silently match nothing).
+    const planPath = join(this.dir, '.stackcanvas', 'plan.json')
+    this.watcher = chokidar.watch(this.dir, {
+      ignoreInitial: true,
+      ignored: (path, stats) => {
+        if (path.includes(`${sep}.terraform${sep}`) || path.endsWith(`${sep}.terraform`)) return true
+        if (stats && !stats.isDirectory() && !path.endsWith('.tfstate') && path !== planPath) return true
+        return false
+      },
+    })
+    this.watcher.on('all', () => this.scheduleRefresh())
     return { port, url: `http://127.0.0.1:${port}` }
   }
 
   async stop(): Promise<void> {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer)
+    await this.watcher?.close()
+    this.watcher = null
+    for (const c of this.wss?.clients ?? []) c.terminate()
+    this.wss?.close()
+    this.wss = null
     await new Promise<void>(resolve => {
       if (!this.httpServer) return resolve()
       const srv = this.httpServer as unknown as { closeAllConnections?: () => void; close: (cb: () => void) => void }
