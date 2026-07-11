@@ -163,13 +163,45 @@ export class CanvasServer {
     return app
   }
 
+  private bindServer(port: number, app: Hono): Promise<ServerType> {
+    return new Promise((resolve, reject) => {
+      const srv = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' })
+      const onError = (err: Error): void => {
+        srv.removeListener('listening', onListening)
+        reject(err)
+      }
+      const onListening = (): void => {
+        srv.removeListener('error', onError)
+        resolve(srv)
+      }
+      srv.once('error', onError)
+      srv.once('listening', onListening)
+    })
+  }
+
   async start(): Promise<{ port: number; url: string }> {
     if (this.httpServer) throw new Error('CanvasServer already started')
     if (!existsSync(this.dir)) throw new Error(`Directory not found: ${this.dir}`)
     await this.refreshGraph()
-    const port = this.fixedPort ?? (await findPort(4680))
+    const explicitPort = this.fixedPort !== undefined
+    let port = this.fixedPort ?? (await findPort(4680))
     const app = this.buildApp()
-    this.httpServer = serve({ fetch: app.fetch, port, hostname: '127.0.0.1' })
+    const maxAttempts = 10
+    let httpServer: ServerType | undefined
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        httpServer = await this.bindServer(port, app)
+        break
+      } catch (err) {
+        const e = err as NodeJS.ErrnoException
+        if (e.code === 'EADDRINUSE' && !explicitPort && attempt < maxAttempts - 1) {
+          port++
+          continue
+        }
+        throw err
+      }
+    }
+    this.httpServer = httpServer!
     this.wss = new WebSocketServer({ noServer: true })
     this.httpServer.on('upgrade', (req, socket, head) => {
       if (req.url === '/ws') {
