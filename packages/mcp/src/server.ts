@@ -38,9 +38,15 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
         + 'Pass the directory that contains the Terraform configuration.')
     if (canvas && canvas.dir !== dir) { await canvas.stop(); canvas = null }
     if (!canvas) {
-      canvas = makeCanvas(dir)
-      const started = await canvas.start()
-      url = started.url
+      const next = makeCanvas(dir)
+      try {
+        const started = await next.start()
+        url = started.url
+      } catch (err) {
+        await next.stop().catch(() => {})
+        return fail(`Failed to start canvas: ${(err as Error).message}`)
+      }
+      canvas = next
       canvas.setAgentStatus('idle')
       open(url)
     }

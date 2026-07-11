@@ -50,6 +50,36 @@ test('open_canvas rejects a non-terraform dir', async () => {
   expect(text(res)).toContain('does not look like a Terraform root')
 })
 
+test('open_canvas recovers from a failed start instead of wedging', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sc-'))
+  writeFileSync(join(dir, 'main.tf'), '')
+  let attempt = 0
+  const mcp = createMcpServer({
+    makeCanvas: d => {
+      attempt += 1
+      const instance = new CanvasServer({ dir: d, runTerraformShow: async () => stateFixture })
+      if (attempt === 1) {
+        instance.start = async () => { throw new Error('port exhausted') }
+      } else {
+        canvas = instance
+      }
+      return instance
+    },
+  })
+  const client = new Client({ name: 'test', version: '0.0.0' })
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)])
+
+  const first = await client.callTool({ name: 'open_canvas', arguments: { dir } })
+  expect((first as { isError?: boolean }).isError).toBe(true)
+  expect(text(first)).toContain('Failed to start canvas')
+
+  const second = await client.callTool({ name: 'open_canvas', arguments: { dir } })
+  expect((second as { isError?: boolean }).isError).toBeFalsy()
+  expect(text(second)).toMatch(/http:\/\/127\.0\.0\.1:\d+/)
+  expect(text(second)).not.toContain('null')
+})
+
 test('get_graph_summary returns the summary text', async () => {
   const { client, dir } = await connect()
   await client.callTool({ name: 'open_canvas', arguments: { dir } })
