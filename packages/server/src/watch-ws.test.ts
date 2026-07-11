@@ -48,3 +48,36 @@ test('loadPlan applies diff statuses to the served graph', async () => {
   const web = graph.nodes.find((n: { id: string }) => n.id === 'aws_instance.web')
   expect(web.status).toBe('update')
 })
+
+test('restarting the same instance does not duplicate broadcasts', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sc-'))
+  writeFileSync(join(dir, 'main.tf'), '')
+  server = new CanvasServer({ dir, runTerraformShow: async () => stateFixture })
+  await server.start()
+  await server.stop()
+  const { url } = await server.start()
+  const ws = new WebSocket(`${url.replace('http', 'ws')}/ws`)
+  const messages: { type: string }[] = []
+  ws.on('message', d => messages.push(JSON.parse(d.toString())))
+  await new Promise(r => ws.once('open', r))
+  await new Promise(r => setTimeout(r, 150))
+  const before = messages.filter(m => m.type === 'graph').length
+  await server.refreshGraph()
+  await new Promise(r => setTimeout(r, 150))
+  const after = messages.filter(m => m.type === 'graph').length
+  expect(after - before).toBe(1)
+  ws.close()
+})
+
+test('malformed plan.json sets stale instead of crashing', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sc-'))
+  writeFileSync(join(dir, 'main.tf'), '')
+  mkdirSync(join(dir, '.stackcanvas'))
+  server = new CanvasServer({ dir, runTerraformShow: async () => stateFixture })
+  await server.start()
+  writeFileSync(join(dir, '.stackcanvas', 'plan.json'), '{ not json')
+  await new Promise(r => setTimeout(r, 800))
+  expect(server.getStale()).toBeTruthy()
+  const g = server.getGraph()
+  expect(g.nodes.length).toBeGreaterThan(0)
+}, 15000)

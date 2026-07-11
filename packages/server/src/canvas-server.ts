@@ -62,6 +62,7 @@ export class CanvasServer {
     this.uiDist = opts.uiDist
     this.run = opts.runTerraformShow ?? defaultRunner
     this.fixedPort = opts.port
+    this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
   }
 
   getGraph(): GraphModel { return this.graph }
@@ -79,11 +80,16 @@ export class CanvasServer {
     if (this.refreshTimer) clearTimeout(this.refreshTimer)
     this.refreshTimer = setTimeout(() => {
       void (async () => {
-        const autoPlan = join(this.dir, '.stackcanvas', 'plan.json')
-        if (this.planPath === null && existsSync(autoPlan)) await this.loadPlan(autoPlan)
-        else if (this.planPath?.endsWith('.json') && existsSync(this.planPath))
-          this.planJson = JSON.parse(readFileSync(this.planPath, 'utf8'))
-        await this.refreshGraph()
+        try {
+          const autoPlan = join(this.dir, '.stackcanvas', 'plan.json')
+          if (this.planPath === null && existsSync(autoPlan)) await this.loadPlan(autoPlan)
+          else if (this.planPath?.endsWith('.json') && existsSync(this.planPath))
+            this.planJson = JSON.parse(readFileSync(this.planPath, 'utf8'))
+          await this.refreshGraph()
+        } catch (err) {
+          this.stale = (err as Error).message
+          for (const fn of this.onGraphChange) fn(this.graph, this.stale)
+        }
       })()
     }, 300)
   }
@@ -144,7 +150,6 @@ export class CanvasServer {
         })
       } else socket.destroy()
     })
-    this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
     // chokidar v4 dropped glob support, so watch `dir` recursively and filter
     // in `ignored` instead of passing glob patterns (which silently match nothing).
     const planPath = join(this.dir, '.stackcanvas', 'plan.json')
