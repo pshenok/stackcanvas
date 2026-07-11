@@ -4,12 +4,15 @@ import '@xyflow/react/dist/style.css'
 import { layoutGraph } from './layout.js'
 import { ResourceNode } from './nodes/ResourceNode.js'
 import { useStore } from './store.js'
+import { connectLive } from './ws.js'
 
 const nodeTypes = { resource: ResourceNode }
 
 export function App() {
   const { graph, collapsed, showPlan, stale, agentStatus, select, toggleGroup, togglePlan } = useStore()
   const [flow, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
+
+  useEffect(() => connectLive(), [])
 
   useEffect(() => {
     let cancelled = false
