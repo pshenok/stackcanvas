@@ -95,14 +95,21 @@ export function App() {
           edges={allEdges}
           nodeTypes={nodeTypes}
           onNodeClick={(_, node) => {
+            setMenu(null)
             if ((node.data as { collapsedGroup?: boolean }).collapsedGroup) toggleGroup(node.id)
             else select(node.id)
           }}
           onNodeContextMenu={(e, node) => {
             e.preventDefault()
-            if (!node.id.startsWith('draft-') && node.type === 'resource')
+            if (
+              !node.id.startsWith('draft-') &&
+              node.type === 'resource' &&
+              !(node.data as { collapsedGroup?: boolean }).collapsedGroup
+            )
               setMenu({ x: e.clientX, y: e.clientY, nodeId: node.id })
           }}
+          onMoveStart={() => setMenu(null)}
+          onNodeDragStart={() => setMenu(null)}
           onConnect={c => {
             if (c.source && c.target && (c.source.startsWith('draft-') || c.target.startsWith('draft-')))
               addDraftEdge(c.source, c.target)
