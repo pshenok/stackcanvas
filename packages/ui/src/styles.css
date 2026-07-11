@@ -1,0 +1,64 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+.app { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+.topbar { display: flex; gap: 12px; align-items: center; padding: 8px 14px;
+  border-bottom: 1px solid #e2e8f0; background: #fff; z-index: 10; }
+.brand { font-weight: 700; }
+.agent-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; }
+.agent-writing { background: #fef9c3; }
+.agent-planning { background: #dbeafe; }
+.stale-banner { color: #b91c1c; font-size: 12px; }
+.notice { font-size: 12px; color: #334155; }
+.resource-node { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1.5px solid #94a3b8; border-radius: 8px; background: #fff; width: 190px; }
+.resource-node .labels { display: flex; flex-direction: column; overflow: hidden; }
+.resource-node .name { font-size: 13px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.resource-node .type { font-size: 10px; color: #64748b; }
+.resource-node.status-create { border-color: #22c55e; box-shadow: 0 0 0 2px #22c55e33; }
+.resource-node.status-update { border-color: #eab308; box-shadow: 0 0 0 2px #eab30833; }
+.resource-node.status-delete { border-color: #ef4444; box-shadow: 0 0 0 2px #ef444433; }
+.resource-node.status-replace { border-color: #a855f7; box-shadow: 0 0 0 2px #a855f733; }
+.draft { border-style: dashed; opacity: 0.85; }
+.removed { border-style: dashed; border-color: #ef4444; opacity: 0.6; text-decoration: line-through; }
+.modified::after { content: ""; position: absolute; }
+.react-flow__node-group { border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc80; }
+.canvas-row { flex: 1; display: flex; min-height: 0; }
+.canvas-row > .react-flow { flex: 1; }
+.inspector { width: 320px; border-left: 1px solid #e2e8f0; padding: 12px; overflow: auto;
+  background: #fff; font-size: 13px; }
+.inspector-head { display: flex; justify-content: space-between; align-items: center; }
+.inspector table { width: 100%; border-collapse: collapse; }
+.inspector td { border-top: 1px solid #f1f5f9; padding: 4px 6px; vertical-align: top;
+  word-break: break-all; }
+.inspector .before code { color: #b91c1c; text-decoration: line-through; }
+.inspector .after code { color: #15803d; }
+.status-pill, .type-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: #f1f5f9; margin-right: 6px; }
+.status-pill.status-create { background: #dcfce7; }
+.status-pill.status-update { background: #fef9c3; }
+.status-pill.status-delete { background: #fee2e2; }
+.status-pill.status-replace { background: #f3e8ff; }
+.inspector-actions { display: flex; gap: 6px; margin: 8px 0; }
+.inspector-actions button { font-size: 12px; padding: 4px 8px; border: 1px solid #e2e8f0;
+  border-radius: 6px; background: #fff; cursor: pointer; }
+.inspector section input, .inspector section textarea { width: 100%; font-size: 13px;
+  padding: 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-family: inherit; }
+.inspector section textarea { min-height: 70px; resize: vertical; }
+.palette { width: 200px; border-right: 1px solid #e2e8f0; padding: 10px; overflow: auto;
+  background: #fff; display: flex; flex-direction: column; gap: 4px; }
+.palette-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer;
+  font-size: 12px; text-align: left; }
+.palette-item:hover { background: #f1f5f9; }
+.palette-custom { display: flex; gap: 4px; margin-top: 8px; }
+.palette-custom input { flex: 1; min-width: 0; font-size: 12px; padding: 4px; }
+.apply { background: #0f172a; color: #fff; border: none; border-radius: 6px;
+  padding: 6px 14px; cursor: pointer; }
+.apply:disabled { opacity: 0.4; }
+.context-menu { position: fixed; z-index: 50; background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 8px; box-shadow: 0 8px 24px #0002; display: flex; flex-direction: column;
+  min-width: 170px; overflow: hidden; }
+.context-menu button { border: none; background: none; text-align: left; padding: 8px 12px;
+  cursor: pointer; font-size: 13px; }
+.context-menu button:hover { background: #f1f5f9; }

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+packages/mcp/ui-dist/
+packages/mcp/README.md
+.stackcanvas/
+*.tfstate
+*.tfstate.backup
+.terraform/
+test-results/
+playwright-report/
+.superpowers/

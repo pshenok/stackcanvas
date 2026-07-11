@@ -1,0 +1,47 @@
+{
+  "format_version": "1.0",
+  "values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "aws_vpc.main", "mode": "managed", "type": "aws_vpc", "name": "main",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": { "id": "vpc-123", "cidr_block": "10.0.0.0/16" },
+          "sensitive_values": {}
+        },
+        {
+          "address": "aws_subnet.a", "mode": "managed", "type": "aws_subnet", "name": "a",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": { "id": "subnet-1", "vpc_id": "vpc-123", "cidr_block": "10.0.1.0/24" },
+          "sensitive_values": {},
+          "depends_on": ["aws_vpc.main"]
+        },
+        {
+          "address": "aws_instance.web", "mode": "managed", "type": "aws_instance", "name": "web",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": { "id": "i-1", "subnet_id": "subnet-1", "instance_type": "t3.micro" },
+          "sensitive_values": {}
+        },
+        {
+          "address": "data.aws_ami.ubuntu", "mode": "data", "type": "aws_ami", "name": "ubuntu",
+          "provider_name": "registry.terraform.io/hashicorp/aws",
+          "values": { "id": "ami-1" }, "sensitive_values": {}
+        }
+      ],
+      "child_modules": [
+        {
+          "address": "module.data",
+          "resources": [
+            {
+              "address": "module.data.aws_db_instance.db", "mode": "managed",
+              "type": "aws_db_instance", "name": "db",
+              "provider_name": "registry.terraform.io/hashicorp/aws",
+              "values": { "id": "db-1", "vpc_id": "vpc-123", "password": "hunter2", "engine": "postgres" },
+              "sensitive_values": { "password": true }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

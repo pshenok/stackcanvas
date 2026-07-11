@@ -1,0 +1,20 @@
+{
+  "name": "stackcanvas-monorepo",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "e2e": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && playwright test",
+    "build:pkg": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && cp README.md packages/mcp/README.md && pnpm --filter stackcanvas build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.0"
+  }
+}
