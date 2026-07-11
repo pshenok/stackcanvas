@@ -52,3 +52,9 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .apply { background: #0f172a; color: #fff; border: none; border-radius: 6px;
   padding: 6px 14px; cursor: pointer; }
 .apply:disabled { opacity: 0.4; }
+.context-menu { position: fixed; z-index: 50; background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 8px; box-shadow: 0 8px 24px #0002; display: flex; flex-direction: column;
+  min-width: 170px; overflow: hidden; }
+.context-menu button { border: none; background: none; text-align: left; padding: 8px 12px;
+  cursor: pointer; font-size: 13px; }
+.context-menu button:hover { background: #f1f5f9; }

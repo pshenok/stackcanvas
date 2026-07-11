@@ -8,6 +8,7 @@ import { Palette } from './Palette.js'
 import { useStore } from './store.js'
 import { connectLive } from './ws.js'
 import { Inspector } from './Inspector.js'
+import { ContextMenu, type MenuState } from './ContextMenu.js'
 
 const nodeTypes = { resource: ResourceNode }
 
@@ -18,6 +19,7 @@ export function App() {
   } = useStore()
   const [flow, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const [notice, setNotice] = useState<string | null>(null)
+  const [menu, setMenu] = useState<MenuState | null>(null)
   const flash = (msg: string) => { setNotice(msg); setTimeout(() => setNotice(null), 4000) }
 
   useEffect(() => connectLive(), [])
@@ -96,10 +98,16 @@ export function App() {
             if ((node.data as { collapsedGroup?: boolean }).collapsedGroup) toggleGroup(node.id)
             else select(node.id)
           }}
+          onNodeContextMenu={(e, node) => {
+            e.preventDefault()
+            if (!node.id.startsWith('draft-') && node.type === 'resource')
+              setMenu({ x: e.clientX, y: e.clientY, nodeId: node.id })
+          }}
           onConnect={c => {
             if (c.source && c.target && (c.source.startsWith('draft-') || c.target.startsWith('draft-')))
               addDraftEdge(c.source, c.target)
           }}
+          onPaneClick={() => { setMenu(null); select(null) }}
           fitView
           proOptions={{ hideAttribution: true }}
         >
@@ -107,6 +115,7 @@ export function App() {
         </ReactFlow>
         <Inspector />
       </div>
+      {menu && <ContextMenu menu={menu} close={() => setMenu(null)} />}
     </div>
   )
 }
