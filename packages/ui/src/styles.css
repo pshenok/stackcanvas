@@ -15,10 +15,10 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .resource-node .name { font-size: 13px; font-weight: 600; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
 .resource-node .type { font-size: 10px; color: #64748b; }
-.status-create { border-color: #22c55e; box-shadow: 0 0 0 2px #22c55e33; }
-.status-update { border-color: #eab308; box-shadow: 0 0 0 2px #eab30833; }
-.status-delete { border-color: #ef4444; box-shadow: 0 0 0 2px #ef444433; }
-.status-replace { border-color: #a855f7; box-shadow: 0 0 0 2px #a855f733; }
+.resource-node.status-create { border-color: #22c55e; box-shadow: 0 0 0 2px #22c55e33; }
+.resource-node.status-update { border-color: #eab308; box-shadow: 0 0 0 2px #eab30833; }
+.resource-node.status-delete { border-color: #ef4444; box-shadow: 0 0 0 2px #ef444433; }
+.resource-node.status-replace { border-color: #a855f7; box-shadow: 0 0 0 2px #a855f733; }
 .draft { border-style: dashed; opacity: 0.85; }
 .removed { border-style: dashed; border-color: #ef4444; opacity: 0.6; text-decoration: line-through; }
 .modified::after { content: ""; position: absolute; }
@@ -35,6 +35,10 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .inspector .after code { color: #15803d; }
 .status-pill, .type-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
   background: #f1f5f9; margin-right: 6px; }
+.status-pill.status-create { background: #dcfce7; }
+.status-pill.status-update { background: #fef9c3; }
+.status-pill.status-delete { background: #fee2e2; }
+.status-pill.status-replace { background: #f3e8ff; }
 .inspector-actions { display: flex; gap: 6px; margin: 8px 0; }
 .inspector-actions button { font-size: 12px; padding: 4px 8px; border: 1px solid #e2e8f0;
   border-radius: 6px; background: #fff; cursor: pointer; }

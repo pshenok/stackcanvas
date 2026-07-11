@@ -1,6 +1,7 @@
 import { useStore } from './store.js'
 
 function Value({ v }: { v: unknown }) {
+  if (v === undefined) return <code>—</code>
   return <code>{typeof v === 'string' ? v : JSON.stringify(v)}</code>
 }
 

@@ -7,7 +7,7 @@ description: Open a live visual canvas of the Terraform infrastructure in this r
 
 1. Call `open_canvas` with the absolute path to the Terraform root of this repo
    (the directory containing the `.tf` files).
-2. If state exists, run `terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json`
+2. If state exists, run `mkdir -p .stackcanvas && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json`
    so the canvas highlights pending changes. Add `.stackcanvas/` to .gitignore if missing.
 3. Enter the loop:
    a. Call `await_canvas_intent` (default timeout 300s).
@@ -17,7 +17,7 @@ description: Open a live visual canvas of the Terraform infrastructure in this r
       entry, matching the existing repo style and module layout. `wishes` fields are
       the user's free-text requirements — honor them. `connect_to` lists existing
       resource addresses the new resource must reference.
-   d. Run `terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json`.
+   d. Run `mkdir -p .stackcanvas && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json`.
       The canvas updates automatically. NEVER run `terraform apply` unless the user
       explicitly asks.
    e. Briefly tell the user what you changed, then go back to (a).

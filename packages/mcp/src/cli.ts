@@ -17,6 +17,10 @@ async function main(): Promise<void> {
     const dir = arg('dir') ?? process.cwd()
     const fixture = arg('fixture')
     const port = arg('port')
+    if (port !== undefined && Number.isNaN(Number(port))) {
+      console.error('invalid --port')
+      process.exit(1)
+    }
     const server = new CanvasServer({
       dir,
       uiDist,
