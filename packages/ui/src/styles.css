@@ -8,6 +8,7 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .agent-writing { background: #fef9c3; }
 .agent-planning { background: #dbeafe; }
 .stale-banner { color: #b91c1c; font-size: 12px; }
+.notice { font-size: 12px; color: #334155; }
 .resource-node { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
   border: 1.5px solid #94a3b8; border-radius: 8px; background: #fff; width: 190px; }
 .resource-node .labels { display: flex; flex-direction: column; overflow: hidden; }

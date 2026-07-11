@@ -17,6 +17,8 @@ export function App() {
     drafts, draftEdges, modifies, removes, addDraftEdge, clearDrafts,
   } = useStore()
   const [flow, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
+  const [notice, setNotice] = useState<string | null>(null)
+  const flash = (msg: string) => { setNotice(msg); setTimeout(() => setNotice(null), 4000) }
 
   useEffect(() => connectLive(), [])
 
@@ -47,14 +49,28 @@ export function App() {
   const pendingCount = drafts.length + Object.keys(modifies).length + removes.size
   const apply = async () => {
     const intent = buildIntent(useStore.getState())
-    const res = await fetch('/api/intent', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(intent),
-    })
-    if (res.status === 202) clearDrafts()
+    try {
+      const res = await fetch('/api/intent', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(intent),
+      })
+      if (res.status === 202) {
+        clearDrafts()
+        flash('Sent to agent')
+      } else {
+        flash(`Apply failed: HTTP ${res.status}`)
+      }
+    } catch {
+      flash('Apply failed: network error')
+    }
   }
   const copyPrompt = async () => {
-    await navigator.clipboard.writeText(buildPrompt(buildIntent(useStore.getState())))
+    try {
+      await navigator.clipboard.writeText(buildPrompt(buildIntent(useStore.getState())))
+      flash('Prompt copied')
+    } catch {
+      flash('Copy failed — clipboard unavailable')
+    }
   }
 
   return (
@@ -64,6 +80,7 @@ export function App() {
         <button onClick={togglePlan}>{showPlan ? 'Hide plan' : 'Show plan'}</button>
         <span className={`agent-badge agent-${agentStatus}`}>agent: {agentStatus}</span>
         {stale && <span className="stale-banner" role="alert">stale: {stale}</span>}
+        {notice && <span className="notice">{notice}</span>}
         <button className="apply" disabled={pendingCount === 0} onClick={() => void apply()}>
           Apply ({pendingCount})
         </button>
@@ -79,7 +96,10 @@ export function App() {
             if ((node.data as { collapsedGroup?: boolean }).collapsedGroup) toggleGroup(node.id)
             else select(node.id)
           }}
-          onConnect={c => { if (c.source && c.target) addDraftEdge(c.source, c.target) }}
+          onConnect={c => {
+            if (c.source && c.target && (c.source.startsWith('draft-') || c.target.startsWith('draft-')))
+              addDraftEdge(c.source, c.target)
+          }}
           fitView
           proOptions={{ hideAttribution: true }}
         >

@@ -64,17 +64,28 @@ export const useStore = create<StoreState>(set => ({
   setDraftWishes: (id, wishes) => set(s => ({
     drafts: s.drafts.map(d => (d.id === id ? { ...d, wishes } : d)),
   })),
-  addDraftEdge: (source, target) => set(s => ({
-    draftEdges: [...s.draftEdges, { source, target }],
-  })),
-  requestModify: (address, wishes) => set(s => ({
-    modifies: { ...s.modifies, [address]: wishes },
-  })),
+  addDraftEdge: (source, target) => set(s => {
+    if (s.draftEdges.some(e => e.source === source && e.target === target)) return s
+    return { draftEdges: [...s.draftEdges, { source, target }] }
+  }),
+  requestModify: (address, wishes) => set(s => {
+    const removes = new Set(s.removes)
+    removes.delete(address)
+    return { modifies: { ...s.modifies, [address]: wishes }, removes }
+  }),
   toggleRemove: address => set(s => {
     const removes = new Set(s.removes)
-    if (removes.has(address)) removes.delete(address)
-    else removes.add(address)
-    return { removes }
+    let modifies = s.modifies
+    if (removes.has(address)) {
+      removes.delete(address)
+    } else {
+      removes.add(address)
+      if (address in modifies) {
+        modifies = { ...modifies }
+        delete modifies[address]
+      }
+    }
+    return { removes, modifies }
   }),
   clearDrafts: () => set({ drafts: [], draftEdges: [], modifies: {}, removes: new Set() }),
 }))
