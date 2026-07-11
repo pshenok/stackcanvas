@@ -1,0 +1,24 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+.app { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+.topbar { display: flex; gap: 12px; align-items: center; padding: 8px 14px;
+  border-bottom: 1px solid #e2e8f0; background: #fff; z-index: 10; }
+.brand { font-weight: 700; }
+.agent-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; }
+.agent-writing { background: #fef9c3; }
+.agent-planning { background: #dbeafe; }
+.stale-banner { color: #b91c1c; font-size: 12px; }
+.resource-node { display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1.5px solid #94a3b8; border-radius: 8px; background: #fff; width: 190px; }
+.resource-node .labels { display: flex; flex-direction: column; overflow: hidden; }
+.resource-node .name { font-size: 13px; font-weight: 600; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.resource-node .type { font-size: 10px; color: #64748b; }
+.status-create { border-color: #22c55e; box-shadow: 0 0 0 2px #22c55e33; }
+.status-update { border-color: #eab308; box-shadow: 0 0 0 2px #eab30833; }
+.status-delete { border-color: #ef4444; box-shadow: 0 0 0 2px #ef444433; }
+.status-replace { border-color: #a855f7; box-shadow: 0 0 0 2px #a855f733; }
+.draft { border-style: dashed; opacity: 0.85; }
+.removed { border-style: dashed; border-color: #ef4444; opacity: 0.6; text-decoration: line-through; }
+.modified::after { content: ""; position: absolute; }
+.react-flow__node-group { border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc80; }
