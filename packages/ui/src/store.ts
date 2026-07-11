@@ -26,6 +26,7 @@ export interface StoreState {
   requestModify: (address: string, wishes: string) => void
   toggleRemove: (address: string) => void
   clearDrafts: () => void
+  removeDraft: (id: string) => void
 }
 
 export const useStore = create<StoreState>(set => ({
@@ -88,4 +89,9 @@ export const useStore = create<StoreState>(set => ({
     return { removes, modifies }
   }),
   clearDrafts: () => set({ drafts: [], draftEdges: [], modifies: {}, removes: new Set() }),
+  removeDraft: id => set(s => ({
+    drafts: s.drafts.filter(d => d.id !== id),
+    draftEdges: s.draftEdges.filter(e => e.source !== id && e.target !== id),
+    selected: s.selected === id ? null : s.selected,
+  })),
 }))
