@@ -6,14 +6,27 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import type { ServerType } from '@hono/node-server'
 import { WebSocketServer, WebSocket } from 'ws'
+import { z } from 'zod'
 import chokidar, { type FSWatcher } from 'chokidar'
 import {
   applyPlan, parseState,
   type AgentStatus, type GraphModel, type Intent,
 } from '@stackcanvas/core'
 import { findPort } from './find-port.js'
+import { IntentQueue } from './intent-queue.js'
 
 const execFileAsync = promisify(execFile)
+
+const intentSchema = z.object({
+  add: z.array(z.object({
+    type: z.string().min(1),
+    name: z.string().optional(),
+    wishes: z.string().optional(),
+    connect_to: z.array(z.string()),
+  })),
+  modify: z.array(z.object({ address: z.string().min(1), wishes: z.string() })),
+  remove: z.array(z.object({ address: z.string().min(1) })),
+})
 
 export type TerraformShowRunner = (cwd: string, planPath?: string) => Promise<string>
 
@@ -56,6 +69,8 @@ export class CanvasServer {
   private watcher: FSWatcher | null = null
   private planPath: string | null = null
   private refreshTimer: NodeJS.Timeout | null = null
+  private intents = new IntentQueue()
+  private agentStatus: AgentStatus = 'idle'
 
   constructor(opts: CanvasServerOptions) {
     this.dir = opts.dir
@@ -68,6 +83,13 @@ export class CanvasServer {
   getGraph(): GraphModel { return this.graph }
   getStale(): string | null { return this.stale }
   subscribe(fn: (g: GraphModel, stale: string | null) => void): void { this.onGraphChange.push(fn) }
+
+  awaitIntent(timeoutMs: number): Promise<Intent | null> { return this.intents.take(timeoutMs) }
+
+  setAgentStatus(s: AgentStatus): void {
+    this.agentStatus = s
+    this.broadcast({ type: 'agent_status', status: s })
+  }
 
   async loadPlan(path: string): Promise<void> {
     if (path.endsWith('.json')) this.planJson = JSON.parse(readFileSync(path, 'utf8'))
@@ -117,6 +139,12 @@ export class CanvasServer {
     const app = new Hono()
     app.get('/api/graph', c => c.json(this.graph))
     app.get('/api/meta', c => c.json({ dir: this.dir, stale: this.stale }))
+    app.post('/api/intent', async c => {
+      const parsed = intentSchema.safeParse(await c.req.json().catch(() => null))
+      if (!parsed.success) return c.json({ error: 'invalid intent' }, 400)
+      this.intents.push(parsed.data)
+      return c.json({ queued: true }, 202)
+    })
     if (this.uiDist) {
       const dist = resolve(this.uiDist)
       app.get('*', c => {
@@ -147,6 +175,7 @@ export class CanvasServer {
       if (req.url === '/ws') {
         this.wss!.handleUpgrade(req, socket, head, ws => {
           ws.send(JSON.stringify({ type: 'graph', graph: this.graph, stale: this.stale }))
+          ws.send(JSON.stringify({ type: 'agent_status', status: this.agentStatus }))
         })
       } else socket.destroy()
     })
