@@ -6,6 +6,8 @@ diagram. Drag new resources onto the canvas; the agent turns them into
 idiomatic HCL. No SaaS, no credentials leave your machine: everything runs on
 localhost, reading your local state and plan.
 
+![stackcanvas demo](docs/demo.gif)
+
 ## How it works
 
 1. `open_canvas` starts a local web UI for your Terraform root.
