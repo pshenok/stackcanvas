@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "stackcanvas": { "command": "npx", "args": ["-y", "stackcanvas"] }
+  }
+}
