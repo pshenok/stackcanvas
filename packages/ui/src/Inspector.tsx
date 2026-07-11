@@ -8,7 +8,7 @@ function Value({ v }: { v: unknown }) {
 export function Inspector() {
   const {
     graph, selected, select, drafts, setDraftName, setDraftWishes,
-    modifies, requestModify, removes, toggleRemove,
+    modifies, requestModify, removes, toggleRemove, removeDraft,
   } = useStore()
 
   if (selected?.startsWith('draft-')) {
@@ -39,6 +39,7 @@ export function Inspector() {
             onChange={e => setDraftWishes(draft.id, e.target.value)}
           />
         </section>
+        <button onClick={() => removeDraft(draft.id)}>Delete draft</button>
       </aside>
     )
   }

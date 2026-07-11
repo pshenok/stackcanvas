@@ -25,6 +25,20 @@ test('toggleRemove clears modifies', () => {
   expect(state.modifies['aws_instance.web']).toBeUndefined()
 })
 
+test('removeDraft removes the draft, its edges, and deselects it', () => {
+  useStore.getState().addDraft('aws_instance')
+  const draft = useStore.getState().drafts[0]
+  useStore.getState().addDraftEdge('aws_vpc.main', draft.id)
+  useStore.getState().addDraftEdge(draft.id, 'aws_subnet.a')
+  useStore.getState().select(draft.id)
+
+  useStore.getState().removeDraft(draft.id)
+  const state = useStore.getState()
+  expect(state.drafts.some(d => d.id === draft.id)).toBe(false)
+  expect(state.draftEdges.some(e => e.source === draft.id || e.target === draft.id)).toBe(false)
+  expect(state.selected).toBeNull()
+})
+
 test('addDraftEdge dedups identical source/target pairs', () => {
   useStore.getState().addDraftEdge('aws_vpc.main', 'draft-1')
   useStore.getState().addDraftEdge('aws_vpc.main', 'draft-1')

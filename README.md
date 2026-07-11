@@ -12,7 +12,10 @@ localhost, reading your local state and plan.
 2. The graph re-renders live whenever `*.tfstate` or `.stackcanvas/plan.json`
    change — you watch the agent work.
 3. You drag resources from the palette (or right-click existing ones to
-   request changes / removal) and hit **Apply**.
+   request changes / removal) and hit **Apply**. Connections between two
+   not-yet-created (draft) resources aren't included in the intent yet —
+   connect drafts to existing resources, or describe the relation in the
+   draft's wishes field.
 4. The agent receives your edits as a structured intent via
    `await_canvas_intent`, writes the HCL, runs `terraform plan`, and the
    canvas highlights what will change. Only the agent executes Terraform —
