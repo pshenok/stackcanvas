@@ -8,7 +8,7 @@
     "test": "vitest run",
     "typecheck": "pnpm -r typecheck",
     "e2e": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && playwright test",
-    "build:pkg": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && pnpm --filter stackcanvas build"
+    "build:pkg": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && cp README.md packages/mcp/README.md && pnpm --filter stackcanvas build"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
