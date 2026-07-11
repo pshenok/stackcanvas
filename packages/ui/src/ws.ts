@@ -8,20 +8,31 @@ type WsMessage =
 export function connectLive(): () => void {
   let ws: WebSocket | null = null
   let closed = false
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let gotLive = false
 
-  void fetch('/api/graph').then(r => r.json()).then((g: GraphModel) =>
-    useStore.getState().setGraph(g, null),
-  ).catch(() => { /* WS will retry */ })
+  void fetch('/api/graph').then(r => r.json()).then((g: GraphModel) => {
+    if (!gotLive && !closed) useStore.getState().setGraph(g, null)
+  }).catch(() => { /* WS will retry */ })
 
   const open = () => {
+    if (closed) return
     ws = new WebSocket(`ws://${location.host}/ws`)
     ws.onmessage = e => {
       const msg = JSON.parse(e.data as string) as WsMessage
-      if (msg.type === 'graph') useStore.getState().setGraph(msg.graph, msg.stale)
-      else if (msg.type === 'agent_status') useStore.getState().setAgentStatus(msg.status)
+      if (msg.type === 'graph') {
+        gotLive = true
+        useStore.getState().setGraph(msg.graph, msg.stale)
+      } else if (msg.type === 'agent_status') {
+        useStore.getState().setAgentStatus(msg.status)
+      }
     }
-    ws.onclose = () => { if (!closed) setTimeout(open, 2000) }
+    ws.onclose = () => { if (!closed) timer = setTimeout(open, 2000) }
   }
   open()
-  return () => { closed = true; ws?.close() }
+  return () => {
+    closed = true
+    if (timer) clearTimeout(timer)
+    ws?.close()
+  }
 }
