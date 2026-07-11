@@ -22,3 +22,15 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .removed { border-style: dashed; border-color: #ef4444; opacity: 0.6; text-decoration: line-through; }
 .modified::after { content: ""; position: absolute; }
 .react-flow__node-group { border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc80; }
+.canvas-row { flex: 1; display: flex; min-height: 0; }
+.canvas-row > .react-flow { flex: 1; }
+.inspector { width: 320px; border-left: 1px solid #e2e8f0; padding: 12px; overflow: auto;
+  background: #fff; font-size: 13px; }
+.inspector-head { display: flex; justify-content: space-between; align-items: center; }
+.inspector table { width: 100%; border-collapse: collapse; }
+.inspector td { border-top: 1px solid #f1f5f9; padding: 4px 6px; vertical-align: top;
+  word-break: break-all; }
+.inspector .before code { color: #b91c1c; text-decoration: line-through; }
+.inspector .after code { color: #15803d; }
+.status-pill, .type-pill { font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: #f1f5f9; margin-right: 6px; }

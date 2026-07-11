@@ -5,6 +5,7 @@ import { layoutGraph } from './layout.js'
 import { ResourceNode } from './nodes/ResourceNode.js'
 import { useStore } from './store.js'
 import { connectLive } from './ws.js'
+import { Inspector } from './Inspector.js'
 
 const nodeTypes = { resource: ResourceNode }
 
@@ -28,19 +29,22 @@ export function App() {
         <span className={`agent-badge agent-${agentStatus}`}>agent: {agentStatus}</span>
         {stale && <span className="stale-banner" role="alert">stale: {stale}</span>}
       </header>
-      <ReactFlow
-        nodes={flow.nodes}
-        edges={flow.edges}
-        nodeTypes={nodeTypes}
-        onNodeClick={(_, node) => {
-          if ((node.data as { collapsedGroup?: boolean }).collapsedGroup) toggleGroup(node.id)
-          else select(node.id)
-        }}
-        fitView
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background />
-      </ReactFlow>
+      <div className="canvas-row">
+        <ReactFlow
+          nodes={flow.nodes}
+          edges={flow.edges}
+          nodeTypes={nodeTypes}
+          onNodeClick={(_, node) => {
+            if ((node.data as { collapsedGroup?: boolean }).collapsedGroup) toggleGroup(node.id)
+            else select(node.id)
+          }}
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background />
+        </ReactFlow>
+        <Inspector />
+      </div>
     </div>
   )
 }
