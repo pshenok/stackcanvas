@@ -6,7 +6,7 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit -p e2e/tsconfig.json",
     "e2e": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && playwright test",
     "build:pkg": "pnpm --filter @stackcanvas/ui build && rm -rf packages/mcp/ui-dist && cp -R packages/ui/dist packages/mcp/ui-dist && cp README.md packages/mcp/README.md && pnpm --filter stackcanvas build"
   },
