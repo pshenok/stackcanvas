@@ -16,7 +16,15 @@ export function shortProvider(providerName: string | undefined): string {
   return last
 }
 
-function maskSensitive(
+function maskSensitiveElement(v: unknown, s: unknown): unknown {
+  if (s === true) return '•••'
+  if (Array.isArray(s) && Array.isArray(v)) return v.map((el, i) => maskSensitiveElement(el, s[i]))
+  if (s && typeof s === 'object' && v && typeof v === 'object' && !Array.isArray(v))
+    return maskSensitive(v as Record<string, unknown>, s)
+  return v
+}
+
+export function maskSensitive(
   values: Record<string, unknown>,
   sensitive: unknown,
 ): Record<string, unknown> {
@@ -25,6 +33,8 @@ function maskSensitive(
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(values)) {
     if (s[k] === true) out[k] = '•••'
+    else if (Array.isArray(s[k]) && Array.isArray(v))
+      out[k] = (v as unknown[]).map((el, i) => maskSensitiveElement(el, (s[k] as unknown[])[i]))
     else if (s[k] && typeof s[k] === 'object' && v && typeof v === 'object' && !Array.isArray(v))
       out[k] = maskSensitive(v as Record<string, unknown>, s[k])
     else out[k] = v

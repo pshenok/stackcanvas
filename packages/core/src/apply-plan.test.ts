@@ -25,10 +25,18 @@ test('create adds a new node with after-attributes', () => {
   expect(bucket?.provider).toBe('aws')
 })
 
-test('attributeDiff lists changed keys only', () => {
+test('sensitive create attributes are masked', () => {
+  const g = graph()
+  const bucket = g.nodes.find(n => n.id === 'aws_s3_bucket.assets')!
+  expect(bucket.attributes['secret_token']).toBe('•••')
+  expect(bucket.attributeDiff).toContainEqual({ key: 'secret_token', before: null, after: '•••' })
+})
+
+test('attributeDiff lists changed keys only, masking sensitive values', () => {
   const g = graph()
   const web = g.nodes.find(n => n.id === 'aws_instance.web')!
   expect(web.attributeDiff).toEqual([
+    { key: 'admin_password', before: '•••', after: '•••' },
     { key: 'instance_type', before: 't3.micro', after: 't3.large' },
   ])
 })

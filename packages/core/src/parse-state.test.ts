@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, test } from 'vitest'
-import { parseState } from './parse-state.js'
+import { maskSensitive, parseState } from './parse-state.js'
 
 const fixture = JSON.parse(
   readFileSync(new URL('../test/fixtures/state.json', import.meta.url), 'utf8'),
@@ -34,4 +34,13 @@ test('sensitive attributes are masked', () => {
 test('handles empty/garbage input without throwing', () => {
   expect(parseState(null)).toEqual({ nodes: [], edges: [], groups: [] })
   expect(parseState({ values: {} })).toEqual({ nodes: [], edges: [], groups: [] })
+})
+
+test('maskSensitive masks array elements element-wise', () => {
+  const values = { tags: ['public', 'topsecret'], rules: [{ cidr: '0.0.0.0/0' }, { cidr: '10.0.0.0/8' }] }
+  const sensitive = { tags: [false, true], rules: [false, { cidr: true }] }
+  expect(maskSensitive(values, sensitive)).toEqual({
+    tags: ['public', '•••'],
+    rules: [{ cidr: '0.0.0.0/0' }, { cidr: '•••' }],
+  })
 })
