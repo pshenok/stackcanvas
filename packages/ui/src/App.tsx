@@ -8,6 +8,7 @@ import { buildIntent, buildPrompt, isConnectEdge } from './intent.js'
 import { layoutGraph } from './layout.js'
 import { ResourceNode } from './nodes/ResourceNode.js'
 import { Palette } from './Palette.js'
+import { providerOfType } from './resource-palette.js'
 import { useStore } from './store.js'
 import { connectLive } from './ws.js'
 import { Inspector } from './Inspector.js'
@@ -60,7 +61,7 @@ export function App() {
     id: d.id,
     type: 'resource',
     position: userPos[d.id] ?? { x: 40 + i * 30, y: 40 + i * 60 },
-    data: { label: d.name ?? d.type, type: d.type, provider: 'aws', status: 'noop', draft: true },
+    data: { label: d.name ?? d.type, type: d.type, provider: providerOfType(d.type), status: 'noop', draft: true },
   }))
   const decoratedNodes = flow.nodes.map(n => ({
     ...n,

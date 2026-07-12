@@ -62,3 +62,6 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .context-menu button { border: none; background: none; text-align: left; padding: 8px 12px;
   cursor: pointer; font-size: 13px; }
 .context-menu button:hover { background: #f1f5f9; }
+.palette-pack { display: flex; flex-direction: column; gap: 4px; }
+.palette-pack h5 { margin: 6px 0 2px; font-size: 11px; color: #64748b;
+  text-transform: uppercase; letter-spacing: 0.05em; }

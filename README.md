@@ -31,6 +31,21 @@ Then, inside a repo with Terraform:
 
     /stackcanvas
 
+## Multi-cloud
+
+The canvas is provider-agnostic: **any Terraform provider in your state renders** —
+AWS, GCP, Azure, Cloudflare, Datadog, `random`, all of them, in one graph
+(a single Terraform root often mixes providers, so there is no "cloud switcher").
+What's provider-specific is only the curation layer, shipped as **provider packs**:
+
+- a palette pack (`packages/ui/src/resource-palette.ts`) — curated drag-and-drop types
+- containment rules (`DEFAULT_CONTAINMENT_RULES` in `@stackcanvas/core`) — which
+  resources render as visual containers (AWS VPC/subnet today)
+- icon patterns (`packages/ui/src/icons.tsx`)
+
+AWS ships first. Adding a GCP/Azure/other pack is pure data and makes a great
+first PR.
+
 ## Tools
 
 | Tool | Purpose |

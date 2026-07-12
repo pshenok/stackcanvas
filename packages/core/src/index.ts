@@ -1,6 +1,7 @@
 export const VERSION = '0.1.0'
 export * from './types.js'
 export { parseState, shortProvider } from './parse-state.js'
-export { deriveContainment, deriveEdges } from './derive.js'
+export { DEFAULT_CONTAINMENT_RULES, deriveContainment, deriveEdges } from './derive.js'
+export type { ContainmentRule } from './derive.js'
 export { applyPlan } from './apply-plan.js'
 export { summarizeGraph } from './summarize.js'
