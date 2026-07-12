@@ -10,7 +10,8 @@ description: Open a live visual canvas of the Terraform infrastructure in this r
 2. If state exists, run `mkdir -p .stackcanvas && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json`
    so the canvas highlights pending changes. Add `.stackcanvas/` to .gitignore if missing.
 3. Enter the loop:
-   a. Call `await_canvas_intent` (default timeout 300s).
+   a. Call `await_canvas_intent` (default timeout 45s — kept under typical MCP client
+      request timeouts; do not pass larger values, loop instead).
    b. If the result is `{"intent": null}`, call it again — unless the user has asked
       you to stop or the conversation has moved on.
    c. When an intent arrives: write idiomatic HCL for every `add`/`modify`/`remove`

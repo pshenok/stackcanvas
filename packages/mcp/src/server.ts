@@ -83,10 +83,12 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
   mcp.registerTool('await_canvas_intent', {
     description: 'Block until the user clicks Apply on the canvas, then return their requested '
       + 'changes as intent JSON: {intent: {add, modify, remove} | null}. null = timeout, call again '
-      + 'to keep waiting. After receiving an intent, write the Terraform code for it.',
+      + 'in a loop to keep waiting. After receiving an intent, write the Terraform code for it.',
     inputSchema: {
-      timeoutSeconds: z.number().positive().max(3600).default(300)
-        .describe('How long to wait before returning {intent: null}'),
+      timeoutSeconds: z.number().positive().max(3600).default(45)
+        .describe('How long to wait before returning {intent: null}. Default 45s: MCP clients '
+          + 'commonly abort requests after 60s, so keep this under your client\'s request timeout '
+          + 'and call the tool in a loop instead of passing large values.'),
     },
   }, async ({ timeoutSeconds }) => {
     if (!canvas) return fail('No canvas open. Call open_canvas first.')
