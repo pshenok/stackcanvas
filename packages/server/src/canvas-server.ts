@@ -53,6 +53,9 @@ export interface CanvasServerOptions {
   uiDist?: string
   runTerraformShow?: TerraformShowRunner
   port?: number
+  /** First port findPort probes when no fixed port is given (default 4680).
+   *  Tests use distinct bases so parallel suites never contend. */
+  portRangeStart?: number
 }
 
 export class CanvasServer {
@@ -60,6 +63,7 @@ export class CanvasServer {
   private uiDist?: string
   private run: TerraformShowRunner
   private fixedPort?: number
+  private portRangeStart: number
   private graph: GraphModel = { nodes: [], edges: [], groups: [] }
   private planJson: unknown = null
   private stale: string | null = null
@@ -77,6 +81,7 @@ export class CanvasServer {
     this.uiDist = opts.uiDist
     this.run = opts.runTerraformShow ?? defaultRunner
     this.fixedPort = opts.port
+    this.portRangeStart = opts.portRangeStart ?? 4680
     this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
   }
 
@@ -184,7 +189,7 @@ export class CanvasServer {
     if (!existsSync(this.dir)) throw new Error(`Directory not found: ${this.dir}`)
     await this.refreshGraph()
     const explicitPort = this.fixedPort !== undefined
-    let port = this.fixedPort ?? (await findPort(4680))
+    let port = this.fixedPort ?? (await findPort(this.portRangeStart))
     const app = this.buildApp()
     const maxAttempts = 10
     let httpServer: ServerType | undefined

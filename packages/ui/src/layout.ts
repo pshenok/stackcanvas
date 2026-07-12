@@ -79,7 +79,7 @@ export async function layoutGraph(
         id: child.id,
         type: isGroup && !collapsed.has(child.id) ? 'group' : 'resource',
         position: { x: child.x ?? 0, y: child.y ?? 0 },
-        ...(parentId ? { parentId, extent: 'parent' as const } : {}),
+        ...(parentId ? { parentId } : {}),
         style: isGroup && !collapsed.has(child.id)
           ? { width: child.width, height: child.height }
           : undefined,

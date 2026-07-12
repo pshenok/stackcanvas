@@ -39,6 +39,20 @@ test('removeDraft removes the draft, its edges, and deselects it', () => {
   expect(state.selected).toBeNull()
 })
 
+test('addDraftEdge rejects self-loops', () => {
+  useStore.getState().addDraftEdge('aws_vpc.main', 'aws_vpc.main')
+  expect(useStore.getState().draftEdges).toEqual([])
+})
+
+test('draft ids are never reused after delete or clear', () => {
+  useStore.getState().addDraft('aws_instance')
+  const first = useStore.getState().drafts[0].id
+  useStore.getState().removeDraft(first)
+  useStore.getState().addDraft('aws_instance')
+  const second = useStore.getState().drafts[0].id
+  expect(second).not.toBe(first)
+})
+
 test('addDraftEdge dedups identical source/target pairs', () => {
   useStore.getState().addDraftEdge('aws_vpc.main', 'draft-1')
   useStore.getState().addDraftEdge('aws_vpc.main', 'draft-1')

@@ -11,6 +11,8 @@ export interface StoreState {
   collapsed: Set<string>
   showPlan: boolean
   drafts: DraftNode[]
+  /** Monotonic counter so draft ids are never reused within a session. */
+  draftSeq: number
   draftEdges: { source: string; target: string }[]
   modifies: Record<string, string>
   removes: Set<string>
@@ -37,6 +39,7 @@ export const useStore = create<StoreState>(set => ({
   collapsed: new Set<string>(),
   showPlan: true,
   drafts: [],
+  draftSeq: 0,
   draftEdges: [],
   modifies: {},
   removes: new Set<string>(),
@@ -57,7 +60,8 @@ export const useStore = create<StoreState>(set => ({
   }),
   togglePlan: () => set(s => ({ showPlan: !s.showPlan })),
   addDraft: type => set(s => ({
-    drafts: [...s.drafts, { id: `draft-${s.drafts.length + 1}-${type}`, type }],
+    draftSeq: s.draftSeq + 1,
+    drafts: [...s.drafts, { id: `draft-${s.draftSeq + 1}-${type}`, type }],
   })),
   setDraftName: (id, name) => set(s => ({
     drafts: s.drafts.map(d => (d.id === id ? { ...d, name } : d)),
@@ -66,6 +70,7 @@ export const useStore = create<StoreState>(set => ({
     drafts: s.drafts.map(d => (d.id === id ? { ...d, wishes } : d)),
   })),
   addDraftEdge: (source, target) => set(s => {
+    if (source === target) return s
     if (s.draftEdges.some(e => e.source === source && e.target === target)) return s
     return { draftEdges: [...s.draftEdges, { source, target }] }
   }),
