@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ResourceIcon } from './icons.js'
-import { PALETTE } from './resource-palette.js'
+import { PROVIDER_PACKS } from './resource-palette.js'
 import { useStore } from './store.js'
 
 export function Palette() {
@@ -9,10 +9,15 @@ export function Palette() {
   return (
     <aside className="palette">
       <h4>Add resource</h4>
-      {PALETTE.map(p => (
-        <button key={p.type} className="palette-item" onClick={() => addDraft(p.type)}>
-          <ResourceIcon type={p.type} /> {p.label}
-        </button>
+      {PROVIDER_PACKS.map(pack => (
+        <section key={pack.provider} className="palette-pack">
+          <h5>{pack.label}</h5>
+          {pack.items.map(p => (
+            <button key={p.type} className="palette-item" onClick={() => addDraft(p.type)}>
+              <ResourceIcon type={p.type} /> {p.label}
+            </button>
+          ))}
+        </section>
       ))}
       <div className="palette-custom">
         <input

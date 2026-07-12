@@ -14,7 +14,7 @@ export interface GraphNode {
 export interface GraphEdge { id: string; source: string; target: string }
 export interface GraphGroup {
   id: string; label: string
-  kind: 'module' | 'vpc' | 'subnet'
+  kind: string  // 'module' + containment-rule kinds ('vpc', 'subnet', ...)
   parent: string | null
 }
 export interface GraphModel { nodes: GraphNode[]; edges: GraphEdge[]; groups: GraphGroup[] }

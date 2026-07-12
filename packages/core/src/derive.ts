@@ -24,39 +24,48 @@ export function deriveEdges(nodes: GraphNode[]): GraphEdge[] {
   return [...edges.values()]
 }
 
-export function deriveContainment(g: GraphModel): GraphModel {
+export interface ContainmentRule {
+  /** Resource type that acts as a visual container, e.g. 'aws_vpc'. */
+  containerType: string
+  /** Member attribute whose value equals the container's physical `id`, e.g. 'vpc_id'. */
+  memberAttr: string
+  /** Group kind; also the group-id prefix, e.g. 'vpc' -> 'vpc:<address>'. */
+  kind: string
+}
+
+/**
+ * Rule order matters: earlier rules' membership is assigned before later
+ * containers are created, so nested kinds (subnet inside vpc) inherit the
+ * right parent. Provider packs extend this table (PRs welcome) — the only
+ * requirement is that members reference the container by its physical id.
+ */
+export const DEFAULT_CONTAINMENT_RULES: ContainmentRule[] = [
+  { containerType: 'aws_vpc', memberAttr: 'vpc_id', kind: 'vpc' },
+  { containerType: 'aws_subnet', memberAttr: 'subnet_id', kind: 'subnet' },
+]
+
+export function deriveContainment(
+  g: GraphModel,
+  rules: ContainmentRule[] = DEFAULT_CONTAINMENT_RULES,
+): GraphModel {
   const groups = [...g.groups]
   const nodes = g.nodes.map(n => ({ ...n }))
-  const vpcGroupByPhysicalId = new Map<string, string>()
-  const subnetGroupByPhysicalId = new Map<string, string>()
-
-  for (const n of nodes.filter(n => n.type === 'aws_vpc')) {
-    const pid = n.attributes['id']
-    if (typeof pid !== 'string') continue
-    const gid = `vpc:${n.id}`
-    groups.push({ id: gid, label: n.name, kind: 'vpc', parent: n.group })
-    vpcGroupByPhysicalId.set(pid, gid)
-    n.group = gid
-  }
-  for (const n of nodes) {
-    if (n.type === 'aws_vpc') continue
-    const vpcRef = n.attributes['vpc_id']
-    if (typeof vpcRef === 'string' && vpcGroupByPhysicalId.has(vpcRef))
-      n.group = vpcGroupByPhysicalId.get(vpcRef)!
-  }
-  for (const n of nodes.filter(n => n.type === 'aws_subnet')) {
-    const pid = n.attributes['id']
-    if (typeof pid !== 'string') continue
-    const gid = `subnet:${n.id}`
-    groups.push({ id: gid, label: n.name, kind: 'subnet', parent: n.group })
-    subnetGroupByPhysicalId.set(pid, gid)
-    n.group = gid
-  }
-  for (const n of nodes) {
-    if (n.type === 'aws_subnet') continue
-    const subnetRef = n.attributes['subnet_id']
-    if (typeof subnetRef === 'string' && subnetGroupByPhysicalId.has(subnetRef))
-      n.group = subnetGroupByPhysicalId.get(subnetRef)!
+  for (const rule of rules) {
+    const groupByPhysicalId = new Map<string, string>()
+    for (const n of nodes.filter(n => n.type === rule.containerType)) {
+      const pid = n.attributes['id']
+      if (typeof pid !== 'string') continue
+      const gid = `${rule.kind}:${n.id}`
+      groups.push({ id: gid, label: n.name, kind: rule.kind, parent: n.group })
+      groupByPhysicalId.set(pid, gid)
+      n.group = gid
+    }
+    for (const n of nodes) {
+      if (n.type === rule.containerType) continue
+      const ref = n.attributes[rule.memberAttr]
+      if (typeof ref === 'string' && groupByPhysicalId.has(ref))
+        n.group = groupByPhysicalId.get(ref)!
+    }
   }
   return { ...g, nodes, groups }
 }
