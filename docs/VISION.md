@@ -214,3 +214,13 @@ BUSL + HashiCorp-under-IBM (Infragraph converging on our slot) makes the substra
 **4. Brand: one name or OSS/paid split?**
 *Options:* (a) "stackcanvas" everywhere, "Studio" as the paid tier name; (b) separate product brand for the desktop app (Stackpilot / Mission Control).
 *Recommendation:* **(a)** — the OSS repo is the only distribution asset that exists; every rename resets registry ranking, tutorial mindshare, and star equity, which the moat thesis says are the actual moat.
+---
+
+## Founder decisions (2026-07-12, KP)
+
+1. **Agent auth/economics:** deferred — focus is pure OSS for now; monetization decisions (API-key vs subscription, Studio pricing) revisit at the 2026-10-15 gate with real retention data. The 2027-01-15 consultant-outbound gate is suspended accordingly.
+2. **GTM:** OSS-inbound only. No consultant outbound motion for now; paid-tier validation waits until OSS traction data exists.
+3. **Substrate:** source-graph abstraction in Stage 2 confirmed — tfstate + live-scan as first two providers, OpenTofu in CI.
+4. **Brand:** stackcanvas everywhere; "Studio" as the paid tier name if/when it comes.
+
+Practical consequence: Stage 1 (npm publish, plugin registry, launch content, opt-in telemetry) is the only priority; Stage 2 planning starts after the 2026-10-15 retention gate reads.
