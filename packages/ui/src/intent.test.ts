@@ -21,6 +21,19 @@ test('buildIntent maps drafts, connections, modifies, removes', () => {
   })
 })
 
+test('an edge between two existing resources becomes a connect modify', () => {
+  const intent = buildIntent({
+    drafts: [],
+    draftEdges: [{ source: 'module.data.aws_db_instance.db', target: 'aws_instance.web' }],
+    modifies: {},
+    removes: new Set<string>(),
+  })
+  expect(intent.modify).toEqual([
+    { address: 'module.data.aws_db_instance.db', wishes: 'connect to aws_instance.web' },
+  ])
+  expect(intent.add).toEqual([])
+})
+
 test('buildPrompt renders human-readable instructions', () => {
   const text = buildPrompt(buildIntent(state))
   expect(text).toContain('ADD aws_db_instance')

@@ -27,7 +27,7 @@ afterEach(async () => { await server?.stop() })
 test('POST /api/intent flows to awaitIntent; bad payload rejected', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'sc-'))
   writeFileSync(join(dir, 'main.tf'), '')
-  server = new CanvasServer({ dir, runTerraformShow: async () => stateFixture })
+  server = new CanvasServer({ dir, runTerraformShow: async () => stateFixture, portRangeStart: 17680 })
   const { url } = await server.start()
   const waiting = server.awaitIntent(5000)
   const good = await fetch(`${url}/api/intent`, {

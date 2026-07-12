@@ -32,7 +32,7 @@ function makeDir(): string {
 }
 
 test('serves the parsed graph on /api/graph', async () => {
-  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture })
+  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture, portRangeStart: 15600 })
   const { url } = await server.start()
   const res = await fetch(`${url}/api/graph`)
   expect(res.status).toBe(200)
@@ -45,6 +45,7 @@ test('terraform failure keeps last good graph and reports stale', async () => {
   server = new CanvasServer({
     dir: makeDir(),
     runTerraformShow: async () => { if (fail) throw new Error('boom'); return stateFixture },
+    portRangeStart: 15600,
   })
   const { url } = await server.start()
   fail = true
@@ -54,7 +55,7 @@ test('terraform failure keeps last good graph and reports stale', async () => {
 })
 
 test('binds localhost only', async () => {
-  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture })
+  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture, portRangeStart: 15600 })
   const { url } = await server.start()
   expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/)
 })
@@ -62,7 +63,10 @@ test('binds localhost only', async () => {
 test('path traversal attack protection', async () => {
   const uiDir = mkdtempSync(join(tmpdir(), 'ui-'))
   writeFileSync(join(uiDir, 'index.html'), '<!doctype html>ok')
-  server = new CanvasServer({ dir: makeDir(), uiDist: uiDir, runTerraformShow: async () => stateFixture })
+  server = new CanvasServer({
+    dir: makeDir(), uiDist: uiDir,
+    runTerraformShow: async () => stateFixture, portRangeStart: 15600,
+  })
   const { url } = await server.start()
 
   // Test encoded traversal
@@ -80,11 +84,13 @@ test('path traversal attack protection', async () => {
   expect(body2).not.toMatch(/^root:/)
 })
 
-test('auto-selects a different port when the default is occupied', async () => {
-  rawServer = await occupyPort(4680)
-  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture })
+test('auto-selects a different port when the range start is occupied', async () => {
+  rawServer = await occupyPort(15680)
+  server = new CanvasServer({
+    dir: makeDir(), runTerraformShow: async () => stateFixture, portRangeStart: 15680,
+  })
   const { port, url } = await server.start()
-  expect(port).not.toBe(4680)
+  expect(port).not.toBe(15680)
   const res = await fetch(`${url}/api/graph`)
   expect(res.status).toBe(200)
 })

@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Background, ReactFlow, type Edge, type Node } from '@xyflow/react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  Background, ReactFlow,
+  type Edge, type Node, type NodeChange, type XYPosition,
+} from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { buildIntent, buildPrompt } from './intent.js'
 import { layoutGraph } from './layout.js'
@@ -20,6 +23,21 @@ export function App() {
   const [flow, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const [notice, setNotice] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
+  // Positions the user set by dragging; they win over the auto-layout until the
+  // graph itself changes shape enough that ELK repositions everything anyway.
+  const [userPos, setUserPos] = useState<Record<string, XYPosition>>({})
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setUserPos(prev => {
+      let next: Record<string, XYPosition> | null = null
+      for (const c of changes) {
+        if (c.type === 'position' && c.position) {
+          next ??= { ...prev }
+          next[c.id] = c.position
+        }
+      }
+      return next ?? prev
+    })
+  }, [])
   const flash = (msg: string) => { setNotice(msg); setTimeout(() => setNotice(null), 4000) }
 
   useEffect(() => connectLive(), [])
@@ -33,11 +51,12 @@ export function App() {
   const draftNodes: Node[] = drafts.map((d, i) => ({
     id: d.id,
     type: 'resource',
-    position: { x: 40 + i * 30, y: 40 + i * 60 },
+    position: userPos[d.id] ?? { x: 40 + i * 30, y: 40 + i * 60 },
     data: { label: d.name ?? d.type, type: d.type, provider: 'aws', status: 'noop', draft: true },
   }))
   const decoratedNodes = flow.nodes.map(n => ({
     ...n,
+    position: userPos[n.id] ?? n.position,
     data: { ...n.data, removed: removes.has(n.id), modified: n.id in modifies },
   }))
   const allNodes = [...decoratedNodes, ...draftNodes]
@@ -48,7 +67,11 @@ export function App() {
     })),
   ]
 
-  const pendingCount = drafts.length + Object.keys(modifies).length + removes.size
+  const draftIds = new Set(drafts.map(d => d.id))
+  const connectEdgeCount = draftEdges
+    .filter(e => !draftIds.has(e.source) && !draftIds.has(e.target)).length
+  const pendingCount =
+    drafts.length + Object.keys(modifies).length + removes.size + connectEdgeCount
   const apply = async () => {
     const intent = buildIntent(useStore.getState())
     try {
@@ -110,9 +133,9 @@ export function App() {
           }}
           onMoveStart={() => setMenu(null)}
           onNodeDragStart={() => setMenu(null)}
+          onNodesChange={onNodesChange}
           onConnect={c => {
-            if (c.source && c.target && (c.source.startsWith('draft-') || c.target.startsWith('draft-')))
-              addDraftEdge(c.source, c.target)
+            if (c.source && c.target) addDraftEdge(c.source, c.target)
           }}
           onPaneClick={() => { setMenu(null); select(null) }}
           fitView

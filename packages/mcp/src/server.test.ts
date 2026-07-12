@@ -20,7 +20,7 @@ async function connect() {
   const opened: string[] = []
   const mcp = createMcpServer({
     makeCanvas: d => {
-      canvas = new CanvasServer({ dir: d, runTerraformShow: async () => stateFixture })
+      canvas = new CanvasServer({ dir: d, runTerraformShow: async () => stateFixture, portRangeStart: 18680 })
       return canvas
     },
     openBrowser: url => { opened.push(url) },

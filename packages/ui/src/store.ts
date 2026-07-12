@@ -66,6 +66,7 @@ export const useStore = create<StoreState>(set => ({
     drafts: s.drafts.map(d => (d.id === id ? { ...d, wishes } : d)),
   })),
   addDraftEdge: (source, target) => set(s => {
+    if (source === target) return s
     if (s.draftEdges.some(e => e.source === source && e.target === target)) return s
     return { draftEdges: [...s.draftEdges, { source, target }] }
   }),

@@ -19,7 +19,13 @@ export function buildIntent(s: DraftState): Intent {
         .map(e => (e.source === d.id ? e.target : e.source))
         .filter(other => !draftIds.has(other)),
     })),
-    modify: Object.entries(s.modifies).map(([address, wishes]) => ({ address, wishes })),
+    modify: [
+      ...Object.entries(s.modifies).map(([address, wishes]) => ({ address, wishes })),
+      // an edge drawn between two existing resources = "connect them" request
+      ...s.draftEdges
+        .filter(e => !draftIds.has(e.source) && !draftIds.has(e.target))
+        .map(e => ({ address: e.source, wishes: `connect to ${e.target}` })),
+    ],
     remove: [...s.removes].map(address => ({ address })),
   }
 }
