@@ -21,7 +21,8 @@ test('buildIntent maps drafts, connections, modifies, removes', () => {
   })
 })
 
-test('an edge between two existing resources becomes a connect modify', () => {
+test('an edge between two existing resources becomes a connect modify on the target', () => {
+  // deriveEdges convention: target is the resource whose HCL holds the reference
   const intent = buildIntent({
     drafts: [],
     draftEdges: [{ source: 'module.data.aws_db_instance.db', target: 'aws_instance.web' }],
@@ -29,9 +30,21 @@ test('an edge between two existing resources becomes a connect modify', () => {
     removes: new Set<string>(),
   })
   expect(intent.modify).toEqual([
-    { address: 'module.data.aws_db_instance.db', wishes: 'connect to aws_instance.web' },
+    { address: 'aws_instance.web', wishes: 'connect to module.data.aws_db_instance.db' },
   ])
   expect(intent.add).toEqual([])
+})
+
+test('connect wishes merge with an existing modify for the same address', () => {
+  const intent = buildIntent({
+    drafts: [],
+    draftEdges: [{ source: 'aws_vpc.main', target: 'aws_instance.web' }],
+    modifies: { 'aws_instance.web': 'bump root volume to 50gb' },
+    removes: new Set<string>(),
+  })
+  expect(intent.modify).toEqual([
+    { address: 'aws_instance.web', wishes: 'bump root volume to 50gb; connect to aws_vpc.main' },
+  ])
 })
 
 test('buildPrompt renders human-readable instructions', () => {

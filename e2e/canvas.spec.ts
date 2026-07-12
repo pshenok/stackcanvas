@@ -56,6 +56,6 @@ test('connecting two existing nodes draws a draft edge and Apply sends a modify'
   const posted = page.waitForRequest(r => r.url().includes('/api/intent') && r.method() === 'POST')
   await page.getByRole('button', { name: /^Apply/ }).click()
   const body = (await posted).postDataJSON() as { modify: { address: string; wishes: string }[] }
-  expect(body.modify[0].address).toBe('module.data.aws_db_instance.db')
-  expect(body.modify[0].wishes).toContain('aws_instance.web')
+  expect(body.modify[0].address).toBe('aws_instance.web')
+  expect(body.modify[0].wishes).toContain('module.data.aws_db_instance.db')
 })

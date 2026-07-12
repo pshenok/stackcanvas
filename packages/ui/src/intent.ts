@@ -7,6 +7,26 @@ export interface DraftState {
   removes: Set<string>
 }
 
+export function isConnectEdge(
+  draftIds: Set<string>, e: { source: string; target: string },
+): boolean {
+  return !draftIds.has(e.source) && !draftIds.has(e.target)
+}
+
+// Edge convention (matches core's deriveEdges): target is the resource whose
+// HCL holds the reference, so the connect-request modify lands on the target.
+function buildModifies(s: DraftState, draftIds: Set<string>): { address: string; wishes: string }[] {
+  const byAddress = new Map<string, string[]>()
+  for (const [address, wishes] of Object.entries(s.modifies)) byAddress.set(address, [wishes])
+  for (const e of s.draftEdges.filter(e => isConnectEdge(draftIds, e))) {
+    const wishes = byAddress.get(e.target) ?? []
+    byAddress.set(e.target, [...wishes, `connect to ${e.source}`])
+  }
+  return [...byAddress.entries()].map(([address, wishes]) => ({
+    address, wishes: wishes.filter(w => w.length > 0).join('; '),
+  }))
+}
+
 export function buildIntent(s: DraftState): Intent {
   const draftIds = new Set(s.drafts.map(d => d.id))
   return {
@@ -19,13 +39,7 @@ export function buildIntent(s: DraftState): Intent {
         .map(e => (e.source === d.id ? e.target : e.source))
         .filter(other => !draftIds.has(other)),
     })),
-    modify: [
-      ...Object.entries(s.modifies).map(([address, wishes]) => ({ address, wishes })),
-      // an edge drawn between two existing resources = "connect them" request
-      ...s.draftEdges
-        .filter(e => !draftIds.has(e.source) && !draftIds.has(e.target))
-        .map(e => ({ address: e.source, wishes: `connect to ${e.target}` })),
-    ],
+    modify: buildModifies(s, draftIds),
     remove: [...s.removes].map(address => ({ address })),
   }
 }

@@ -4,7 +4,7 @@ import {
   type Edge, type Node, type NodeChange, type XYPosition,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { buildIntent, buildPrompt } from './intent.js'
+import { buildIntent, buildPrompt, isConnectEdge } from './intent.js'
 import { layoutGraph } from './layout.js'
 import { ResourceNode } from './nodes/ResourceNode.js'
 import { Palette } from './Palette.js'
@@ -23,9 +23,17 @@ export function App() {
   const [flow, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const [notice, setNotice] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
-  // Positions the user set by dragging; they win over the auto-layout until the
-  // graph itself changes shape enough that ELK repositions everything anyway.
+  // Positions the user set by dragging; they win over the auto-layout while the
+  // graph is stable. When the graph itself changes, ELK re-layouts and dragged
+  // positions of real nodes are dropped (draft positions survive — they are not
+  // part of the layout).
   const [userPos, setUserPos] = useState<Record<string, XYPosition>>({})
+  useEffect(() => {
+    setUserPos(prev => {
+      const kept = Object.entries(prev).filter(([id]) => id.startsWith('draft-'))
+      return kept.length === Object.keys(prev).length ? prev : Object.fromEntries(kept)
+    })
+  }, [graph])
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     setUserPos(prev => {
       let next: Record<string, XYPosition> | null = null
@@ -68,8 +76,7 @@ export function App() {
   ]
 
   const draftIds = new Set(drafts.map(d => d.id))
-  const connectEdgeCount = draftEdges
-    .filter(e => !draftIds.has(e.source) && !draftIds.has(e.target)).length
+  const connectEdgeCount = draftEdges.filter(e => isConnectEdge(draftIds, e)).length
   const pendingCount =
     drafts.length + Object.keys(modifies).length + removes.size + connectEdgeCount
   const apply = async () => {
