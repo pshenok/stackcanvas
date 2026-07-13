@@ -51,10 +51,12 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
       canvas.setAgentStatus('idle')
       open(url)
     }
+    const stale = canvas.getStale()
+    const warning = stale === null ? '' : `\n\nWARNING: the graph may be incomplete — ${stale}. Tell the user.`
     return ok(`Canvas running at ${url}. The graph live-updates as tfstate changes. `
       + 'Run `terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json` '
       + '(or `tofu plan …` with OpenTofu) to show the plan diff, then call await_canvas_intent '
-      + 'to receive user edits.')
+      + 'to receive user edits.' + warning)
   })
 
   mcp.registerTool('load_plan', {
@@ -79,7 +81,9 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
     inputSchema: {},
   }, async () => {
     if (!canvas) return fail('No canvas open. Call open_canvas first.')
-    return ok(summarizeGraph(canvas.getGraph()))
+    const stale = canvas.getStale()
+    const warning = stale === null ? '' : `\n\nWARNING: the graph may be incomplete — ${stale}. Tell the user.`
+    return ok(summarizeGraph(canvas.getGraph()) + warning)
   })
 
   mcp.registerTool('await_canvas_intent', {
