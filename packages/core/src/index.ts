@@ -5,3 +5,6 @@ export { DEFAULT_CONTAINMENT_RULES, deriveContainment, deriveEdges } from './der
 export type { ContainmentRule } from './derive.js'
 export { applyPlan } from './apply-plan.js'
 export { summarizeGraph } from './summarize.js'
+export type { ProviderSnapshot, ProviderSnapshotMeta, SourceProvider } from './provider.js'
+export { composeGraphs } from './compose.js'
+export type { ComposedGraph } from './compose.js'
