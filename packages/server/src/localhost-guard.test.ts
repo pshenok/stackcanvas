@@ -114,3 +114,15 @@ test('POST /api/intent with a "localhost" Host header is accepted', async () => 
   })
   expect(res.status).toBe(202)
 })
+
+test('POST /api/telemetry with spoofed Host header is rejected by the same guard', async () => {
+  server = new CanvasServer({ dir: makeDir(), runTerraformShow: async () => stateFixture, portRangeStart: 19680 })
+  const { url } = await server.start()
+  const res = await rawRequest(`${url}/api/telemetry`, {
+    method: 'POST',
+    headers: { Host: 'evil.com', 'content-type': 'application/json' },
+    body: JSON.stringify({ granted: true }),
+  })
+  expect(res.status).toBe(403)
+  expect(JSON.parse(res.body)).toEqual({ error: 'forbidden origin' })
+})

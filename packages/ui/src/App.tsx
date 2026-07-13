@@ -13,6 +13,7 @@ import { useStore } from './store.js'
 import { connectLive } from './ws.js'
 import { Inspector } from './Inspector.js'
 import { ContextMenu, type MenuState } from './ContextMenu.js'
+import { ConsentBanner } from './ConsentBanner.js'
 
 const nodeTypes = { resource: ResourceNode }
 
@@ -154,6 +155,7 @@ export function App() {
         <Inspector />
       </div>
       {menu && <ContextMenu menu={menu} close={() => setMenu(null)} />}
+      <ConsentBanner />
     </div>
   )
 }
