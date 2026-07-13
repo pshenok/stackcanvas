@@ -89,7 +89,7 @@ that already holds a `TelemetryClient` — they never touch the browser:
 |---|---|---|
 | `install` | The *first* time you ever click "Allow" (deduped forever via `installReportedAt`) | `TelemetryClient.setConsent(true)`, [`telemetry.ts`](packages/server/src/telemetry.ts) |
 | `canvas_opened` | Every successful `CanvasServer.start()` — covers both `stackcanvas serve` and the MCP `open_canvas` tool (which calls `start()` once per new canvas, never again for a reused one) | [`canvas-server.ts`](packages/server/src/canvas-server.ts) |
-| `intent_sent` | Every valid `POST /api/intent` (i.e. every **Apply** click on the canvas), counted by action kind *after* validation/normalization | [`canvas-server.ts`](packages/server/src/canvas-server.ts) |
+| `intent_sent` | Every valid `POST /api/intent` (i.e. every **Send to agent** click on the canvas), counted by action kind *after* validation/normalization | [`canvas-server.ts`](packages/server/src/canvas-server.ts) |
 | `scan_run` | Reserved for the live-scan feature; not emitted by any code yet | — |
 
 `drift_opened` is the **one** browser-originated event (the drift lens is
@@ -171,7 +171,9 @@ never any resource identity.
 - File paths, directory names, repo names
 - IP addresses, hostnames, MAC addresses, or any device fingerprint
 - Cloud account IDs, ARNs, or any other cloud-provider identifier
-- Timestamps finer than a UTC **day**
+- Client-sent timestamps finer than a UTC **day** (the collector records its
+  own arrival time server-side — see
+  [`telemetry-collector/schema.md`](telemetry-collector/schema.md))
 - Anything not listed in the schema above — enforced by the "envelope
   allowlist tripwire" test (see "How to verify" below)
 
@@ -187,9 +189,10 @@ validates every envelope against the same hard allowlist described above
 which batches and delivers it to S3 as the system of record, see
 [`telemetry-collector/schema.md`](telemetry-collector/schema.md) — and
 responds `200 {ok: true}` on success / `400`/`413` otherwise. It stores no
-cookies, reads no client IP, and has CORS closed (only this repo's own
-server-side code calls it — never the browser directly, see "When events
-fire" above).
+cookies, the handler never reads the client IP (AWS edge/access logs may
+record IPs at the infrastructure layer; we don't query them), and it has
+CORS closed (only this repo's own server-side code calls it — never the
+browser directly, see "When events fire" above).
 
 **PostHog / third-party analytics were evaluated and rejected**: a
 third-party processor breaks the "no cloud backend of ours, fully

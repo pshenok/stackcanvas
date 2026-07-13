@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Background, ReactFlow,
   type Edge, type Node, type NodeChange, type XYPosition,
@@ -25,6 +25,13 @@ export function App() {
   const [flow, setFlow] = useState<{ nodes: Node[]; edges: Edge[] }>({ nodes: [], edges: [] })
   const [notice, setNotice] = useState<string | null>(null)
   const [menu, setMenu] = useState<MenuState | null>(null)
+  const [layouting, setLayouting] = useState(false)
+  // Graph object that `flow` was actually computed for. Differs from `graph`
+  // (by reference) while a layout run for a newer graph is still in flight.
+  const flowGraphRef = useRef<typeof graph | null>(null)
+  // The store's default graph identity, captured once at mount. Used to tell
+  // "no graph has arrived yet" apart from "a real, empty graph arrived".
+  const initialGraphRef = useRef(graph)
   // Positions the user set by dragging; they win over the auto-layout while the
   // graph is stable. When the graph itself changes, ELK re-layouts and dragged
   // positions of real nodes are dropped (draft positions survive — they are not
@@ -54,7 +61,13 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false
-    void layoutGraph(graph, collapsed, showPlan).then(f => { if (!cancelled) setFlow(f) })
+    if (graph.nodes.length > 100) setLayouting(true)
+    void layoutGraph(graph, collapsed, showPlan).then(f => {
+      if (cancelled) return
+      setFlow(f)
+      flowGraphRef.current = graph
+      setLayouting(false)
+    })
     return () => { cancelled = true }
   }, [graph, collapsed, showPlan])
 
@@ -76,6 +89,11 @@ export function App() {
       id: `draft-edge-${i}`, source: e.source, target: e.target, animated: true,
     })),
   ]
+
+  const flowIsStale = flowGraphRef.current !== graph
+  const showLayoutHint = layouting && (flow.nodes.length === 0 || flowIsStale)
+  const hasGraphArrived = graph !== initialGraphRef.current
+  const showWaitingHint = !hasGraphArrived && !stale
 
   const draftIds = new Set(drafts.map(d => d.id))
   const connectEdgeCount = draftEdges.filter(e => isConnectEdge(draftIds, e)).length
@@ -116,7 +134,7 @@ export function App() {
         {stale && <span className="stale-banner" role="alert">stale: {stale}</span>}
         {notice && <span className="notice">{notice}</span>}
         <button className="apply" disabled={pendingCount === 0} onClick={() => void apply()}>
-          Apply ({pendingCount})
+          Send to agent ({pendingCount})
         </button>
         <button disabled={pendingCount === 0} onClick={() => void copyPrompt()}>Copy as prompt</button>
       </header>
@@ -153,6 +171,10 @@ export function App() {
           <Background />
         </ReactFlow>
         <Inspector />
+        {showLayoutHint && (
+          <div className="layout-hint">laying out {graph.nodes.length} resources…</div>
+        )}
+        {showWaitingHint && <div className="layout-hint">waiting for state…</div>}
       </div>
       {menu && <ContextMenu menu={menu} close={() => setMenu(null)} />}
       <ConsentBanner />

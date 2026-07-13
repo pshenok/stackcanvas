@@ -87,6 +87,43 @@ test('get_graph_summary returns the summary text', async () => {
   expect(text(res)).toContain('resources')
 })
 
+const NO_TF_BINARY_MESSAGE = 'No terraform or tofu binary found in PATH. Install one or set STACKCANVAS_TF_BIN.'
+
+async function connectStale() {
+  const dir = mkdtempSync(join(tmpdir(), 'sc-'))
+  writeFileSync(join(dir, 'main.tf'), '')
+  const mcp = createMcpServer({
+    makeCanvas: d => {
+      canvas = new CanvasServer({
+        dir: d,
+        runTerraformShow: async () => { throw new Error(NO_TF_BINARY_MESSAGE) },
+        portRangeStart: 18680,
+      })
+      return canvas
+    },
+  })
+  const client = new Client({ name: 'test', version: '0.0.0' })
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+  await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)])
+  return { client, dir }
+}
+
+test('open_canvas warns the agent when the graph is stale', async () => {
+  const { client, dir } = await connectStale()
+  const res = await client.callTool({ name: 'open_canvas', arguments: { dir } })
+  expect((res as { isError?: boolean }).isError).toBeFalsy()
+  expect(text(res)).toContain('WARNING')
+  expect(text(res)).toContain(NO_TF_BINARY_MESSAGE)
+})
+
+test('get_graph_summary warns the agent when the graph is stale', async () => {
+  const { client, dir } = await connectStale()
+  await client.callTool({ name: 'open_canvas', arguments: { dir } })
+  const res = await client.callTool({ name: 'get_graph_summary', arguments: {} })
+  expect(text(res)).toContain('WARNING')
+  expect(text(res)).toContain(NO_TF_BINARY_MESSAGE)
+})
+
 test('await_canvas_intent returns queued intent as JSON', async () => {
   const { client, dir } = await connect()
   const openRes = await client.callTool({ name: 'open_canvas', arguments: { dir } })

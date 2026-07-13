@@ -1,7 +1,5 @@
 # stackcanvas
 
-[Telemetry: opt-in, anonymous, no infra data — see TELEMETRY.md](TELEMETRY.md)
-
 Live infrastructure canvas for [Claude Code](https://claude.com/claude-code).
 The agent writes and plans your Terraform — stackcanvas shows it as a living
 diagram. Drag new resources onto the canvas; the agent turns them into
@@ -16,7 +14,7 @@ localhost, reading your local state and plan.
 2. The graph re-renders live whenever `*.tfstate` or `.stackcanvas/plan.json`
    change — you watch the agent work.
 3. You drag resources from the palette (or right-click existing ones to
-   request changes / removal) and hit **Apply**. Connections between two
+   request changes / removal) and hit **Send to agent**. Connections between two
    not-yet-created (draft) resources aren't included in the intent yet —
    connect drafts to existing resources, or describe the relation in the
    draft's wishes field.
@@ -30,16 +28,19 @@ localhost, reading your local state and plan.
     claude plugin marketplace add pshenok/stackcanvas
     claude plugin install stackcanvas@stackcanvas
 
-or without the plugin system:
-
-    claude mcp add stackcanvas -- npx -y stackcanvas
-
 Then, inside a repo with Terraform:
 
     /stackcanvas
 
 This is the verified path — the CI `check-plugin` job validates the plugin
 and marketplace manifests on every push.
+
+Or without the plugin system:
+
+    claude mcp add stackcanvas -- npx -y stackcanvas
+
+Then, inside a repo with Terraform, just ask: *open the stackcanvas canvas
+for this repo*.
 
 ## Other MCP clients
 
@@ -98,7 +99,7 @@ to pin it — both take precedence over auto-detection.
 | `open_canvas` | Start the canvas for a Terraform root, open the browser |
 | `load_plan` | Register a plan (JSON or binary) for diff highlighting |
 | `get_graph_summary` | Text summary of the graph for the agent |
-| `await_canvas_intent` | Block until the user clicks Apply; returns their edits |
+| `await_canvas_intent` | Block until the user clicks Send to agent; returns their edits |
 
 ## Demo
 
@@ -106,13 +107,14 @@ to pin it — both take precedence over auto-detection.
 
 ## Telemetry
 
-stackcanvas can send a handful of anonymous usage counters (installs,
-canvases opened, edits sent, scans run) — **opt-in only**, nothing is sent
-until you click **Allow** on the one-time canvas banner, and `DO_NOT_TRACK=1`
-/ `STACKCANVAS_TELEMETRY=0` always turn it off regardless of that decision.
-No resource names, infrastructure data, or file paths ever leave your
-machine. Full payload, consent model, and how to verify it yourself:
-[TELEMETRY.md](TELEMETRY.md).
+stackcanvas can send a handful of anonymous (pseudonymous install id — see
+TELEMETRY.md) usage counters (installs, canvases opened, intents sent;
+scan/drift counters reserved — five ever, see TELEMETRY.md) — **opt-in
+only**, nothing is sent until you click **Allow** on the one-time canvas
+banner, and `DO_NOT_TRACK=1` / `STACKCANVAS_TELEMETRY=0` always turn it off
+regardless of that decision. No resource names, infrastructure data, or file
+paths ever leave your machine. Full payload, consent model, and how to
+verify it yourself: [TELEMETRY.md](TELEMETRY.md).
 
 ## Development
 

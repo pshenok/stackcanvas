@@ -11,7 +11,7 @@ test('palette click creates a dashed draft and Apply posts the intent', async ({
   const posted = page.waitForRequest(r => r.url().includes('/api/intent') && r.method() === 'POST')
   await page.getByRole('button', { name: 'RDS instance' }).click()
   await expect(page.locator('.resource-node.draft')).toBeVisible()
-  await page.getByRole('button', { name: /^Apply/ }).click()
+  await page.getByRole('button', { name: /^Send to agent/ }).click()
   const req = await posted
   const body = req.postDataJSON() as { add: { type: string }[] }
   expect(body.add[0].type).toBe('aws_db_instance')
@@ -61,7 +61,7 @@ test('connecting two existing nodes draws a draft edge and Apply sends a modify'
   await page.mouse.up()
   await expect(page.locator('.react-flow__edge.animated')).toHaveCount(1)
   const posted = page.waitForRequest(r => r.url().includes('/api/intent') && r.method() === 'POST')
-  await page.getByRole('button', { name: /^Apply/ }).click()
+  await page.getByRole('button', { name: /^Send to agent/ }).click()
   const body = (await posted).postDataJSON() as { modify: { address: string; wishes: string }[] }
   expect(body.modify[0].address).toBe('aws_instance.web')
   expect(body.modify[0].wishes).toContain('module.data.aws_db_instance.db')
