@@ -31,17 +31,30 @@ export interface ContainmentRule {
   memberAttr: string
   /** Group kind; also the group-id prefix, e.g. 'vpc' -> 'vpc:<address>'. */
   kind: string
+  /** Container attribute whose value members reference (default 'id'). Some
+   *  providers don't expose a stable `id` members can point back to — e.g.
+   *  GCP networks/subnetworks are referenced by `self_link`, not `id`. */
+  containerIdAttr?: string
 }
 
 /**
  * Rule order matters: earlier rules' membership is assigned before later
  * containers are created, so nested kinds (subnet inside vpc) inherit the
  * right parent. Provider packs extend this table (PRs welcome) — the only
- * requirement is that members reference the container by its physical id.
+ * requirement is that members reference the container by its physical id
+ * (or `containerIdAttr`, when the container isn't referenced by `id`).
  */
 export const DEFAULT_CONTAINMENT_RULES: ContainmentRule[] = [
   { containerType: 'aws_vpc', memberAttr: 'vpc_id', kind: 'vpc' },
   { containerType: 'aws_subnet', memberAttr: 'subnet_id', kind: 'subnet' },
+  // GCP networks/subnetworks are referenced by `self_link`, not `id`.
+  { containerType: 'google_compute_network', memberAttr: 'network', kind: 'vpc', containerIdAttr: 'self_link' },
+  { containerType: 'google_compute_subnetwork', memberAttr: 'subnetwork', kind: 'subnet', containerIdAttr: 'self_link' },
+  { containerType: 'azurerm_subnet', memberAttr: 'subnet_id', kind: 'subnet' },
+  // Cloudflare zones aren't a network container, but they group the
+  // resources scoped to them the same way a VPC groups its members — reuse
+  // the 'vpc' kind rather than introducing a one-off styling kind.
+  { containerType: 'cloudflare_zone', memberAttr: 'zone_id', kind: 'vpc' },
 ]
 
 export function deriveContainment(
@@ -53,7 +66,7 @@ export function deriveContainment(
   for (const rule of rules) {
     const groupByPhysicalId = new Map<string, string>()
     for (const n of nodes.filter(n => n.type === rule.containerType)) {
-      const pid = n.attributes['id']
+      const pid = n.attributes[rule.containerIdAttr ?? 'id']
       if (typeof pid !== 'string') continue
       const gid = `${rule.kind}:${n.id}`
       groups.push({ id: gid, label: n.name, kind: rule.kind, parent: n.group })
