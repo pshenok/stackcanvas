@@ -84,6 +84,33 @@ test('getConsent(): STACKCANVAS_TELEMETRY=1 alone does not grant consent', () =>
 })
 
 // ---------------------------------------------------------------------------
+// STACKCANVAS_CONFIG_DIR: default config path override (no explicit configPath)
+// ---------------------------------------------------------------------------
+
+test('STACKCANVAS_CONFIG_DIR overrides the default config path when configPath is omitted', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sc-config-dir-'))
+  const client = new TelemetryClient({
+    appVersion: '0.1.0', env: { STACKCANVAS_CONFIG_DIR: dir },
+  })
+  expect(client.getConsent()).toBe('unset')
+  client.setConsent(true)
+  const cfg = readConfigFile(join(dir, 'config.json'))
+  const telemetry = cfg.telemetry as { consent: string }
+  expect(telemetry.consent).toBe('granted')
+})
+
+test('an explicit configPath wins over STACKCANVAS_CONFIG_DIR', () => {
+  const explicitPath = makeConfigPath()
+  const unusedDir = mkdtempSync(join(tmpdir(), 'sc-config-dir-'))
+  const client = new TelemetryClient({
+    configPath: explicitPath, appVersion: '0.1.0', env: { STACKCANVAS_CONFIG_DIR: unusedDir },
+  })
+  client.setConsent(true)
+  const cfg = readConfigFile(explicitPath)
+  expect((cfg.telemetry as { consent: string }).consent).toBe('granted')
+})
+
+// ---------------------------------------------------------------------------
 // setConsent: anonId lifecycle + install dedupe
 // ---------------------------------------------------------------------------
 

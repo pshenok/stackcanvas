@@ -112,10 +112,14 @@ export class TelemetryClient {
   private readonly appVersion: string
 
   constructor(opts: TelemetryClientOptions) {
-    this.configPath = opts.configPath ?? join(homedir(), '.stackcanvas', 'config.json')
+    this.env = opts.env ?? process.env
+    // STACKCANVAS_CONFIG_DIR overrides where ~/.stackcanvas normally lives —
+    // used by CI/e2e to keep the consent config hermetic. An explicit
+    // configPath always wins over both.
+    const configDir = this.env.STACKCANVAS_CONFIG_DIR || join(homedir(), '.stackcanvas')
+    this.configPath = opts.configPath ?? join(configDir, 'config.json')
     this.endpoint = opts.endpoint ?? DEFAULT_ENDPOINT
     this.fetchImpl = opts.fetchImpl ?? noopTransport
-    this.env = opts.env ?? process.env
     this.appVersion = opts.appVersion
   }
 

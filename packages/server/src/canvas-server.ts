@@ -14,6 +14,7 @@ import {
 } from '@stackcanvas/core'
 import { findPort } from './find-port.js'
 import { IntentQueue } from './intent-queue.js'
+import { TelemetryClient } from './telemetry.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -56,6 +57,9 @@ export interface CanvasServerOptions {
   /** First port findPort probes when no fixed port is given (default 4680).
    *  Tests use distinct bases so parallel suites never contend. */
   portRangeStart?: number
+  /** Injectable for tests; defaults to a TelemetryClient reading/writing
+   *  ~/.stackcanvas/config.json (or STACKCANVAS_CONFIG_DIR if set). */
+  telemetry?: TelemetryClient
 }
 
 export class CanvasServer {
@@ -75,6 +79,7 @@ export class CanvasServer {
   private refreshTimer: NodeJS.Timeout | null = null
   private intents = new IntentQueue()
   private agentStatus: AgentStatus = 'idle'
+  private telemetry: TelemetryClient
 
   constructor(opts: CanvasServerOptions) {
     this.dir = opts.dir
@@ -82,6 +87,7 @@ export class CanvasServer {
     this.run = opts.runTerraformShow ?? defaultRunner
     this.fixedPort = opts.port
     this.portRangeStart = opts.portRangeStart ?? 4680
+    this.telemetry = opts.telemetry ?? new TelemetryClient({ appVersion: '0.1.0' })
     this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
   }
 
@@ -173,6 +179,13 @@ export class CanvasServer {
       if (!parsed.success) return c.json({ error: 'invalid intent' }, 400)
       this.intents.push(parsed.data)
       return c.json({ queued: true }, 202)
+    })
+    app.get('/api/telemetry', c => c.json({ consent: this.telemetry.getConsent() }))
+    app.post('/api/telemetry', async c => {
+      const body = await c.req.json().catch(() => null) as { granted?: unknown } | null
+      if (!body || typeof body.granted !== 'boolean') return c.json({ error: 'invalid body' }, 400)
+      this.telemetry.setConsent(body.granted)
+      return c.json({ consent: this.telemetry.getConsent() }, 200)
     })
     if (this.uiDist) {
       const dist = resolve(this.uiDist)

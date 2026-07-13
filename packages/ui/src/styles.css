@@ -65,3 +65,14 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .palette-pack { display: flex; flex-direction: column; gap: 4px; }
 .palette-pack h5 { margin: 6px 0 2px; font-size: 11px; color: #64748b;
   text-transform: uppercase; letter-spacing: 0.05em; }
+.consent-banner { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 300px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px #0002;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.consent-banner-head { display: flex; align-items: flex-start; gap: 8px; }
+.consent-banner-head .icon { flex-shrink: 0; color: #64748b; margin-top: 1px; }
+.consent-banner-head p { margin: 0; font-size: 12px; line-height: 1.45; color: #334155; }
+.consent-banner-head a { color: #0f172a; }
+.consent-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.consent-actions button { font-size: 12px; padding: 4px 10px; border: 1px solid #e2e8f0;
+  border-radius: 6px; background: #fff; cursor: pointer; }
+.consent-actions button:first-child { background: #0f172a; color: #fff; border-color: #0f172a; }
