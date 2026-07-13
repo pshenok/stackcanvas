@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noUncheckedIndexedAccess": true,
-    "types": ["@cloudflare/workers-types"],
+    "types": ["node", "aws-lambda"],
     "noEmit": true
   },
   "include": ["src"]

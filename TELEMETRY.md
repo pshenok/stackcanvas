@@ -17,8 +17,8 @@ build the moment the code sends a field that isn't documented here.
   scans run, and drift-lens opens. No resource names, no infrastructure
   data, no file paths, no IPs.
 - **One vendor endpoint, source included.** `https://t.stackcanvas.dev/e`, a
-  small Cloudflare Worker whose source lives in this repo. It is the *only*
-  network endpoint stackcanvas' own code ever calls out to.
+  small AWS Lambda (behind API Gateway) whose source lives in this repo. It
+  is the *only* network endpoint stackcanvas' own code ever calls out to.
 - **Three ways to turn it off:** click "No thanks", set `DO_NOT_TRACK=1`, or
   set `STACKCANVAS_TELEMETRY=0`.
 
@@ -178,17 +178,18 @@ never any resource identity.
 ## The collector
 
 **Endpoint:** `https://t.stackcanvas.dev/e` (`POST` only). A small
-self-hosted Cloudflare Worker, source in this repo at
-`telemetry-worker/worker.ts` (ships with the collector-deployment increment;
-until then, consent-gated code paths in this repo are wired to POST there,
-but no code path can ever reach it without an explicit "Allow" click). It
+self-hosted AWS Lambda behind API Gateway, source in this repo at
+[`telemetry-collector/src/handler.ts`](telemetry-collector/src/handler.ts)
+(no code path can ever reach it without an explicit "Allow" click). It
 validates every envelope against the same hard allowlist described above
 (rejects unknown keys, unknown `event`, a non-UUID `anon_id`, counts over
-50, or a malformed `day`), writes one row to Workers Analytics Engine and
-mirrors the raw envelope as one line to an R2 bucket, and responds `204` on
-success / `400` otherwise. It stores no cookies, reads no client IP, and
-has CORS closed (only this repo's own server-side code calls it — never the
-browser directly, see "When events fire" above).
+50, or a malformed `day`), ships one record to Kinesis Data Firehose —
+which batches and delivers it to S3 as the system of record, see
+[`telemetry-collector/schema.md`](telemetry-collector/schema.md) — and
+responds `200 {ok: true}` on success / `400`/`413` otherwise. It stores no
+cookies, reads no client IP, and has CORS closed (only this repo's own
+server-side code calls it — never the browser directly, see "When events
+fire" above).
 
 **PostHog / third-party analytics were evaluated and rejected**: a
 third-party processor breaks the "no cloud backend of ours, fully
@@ -228,7 +229,7 @@ Because the collector's only key is the random `anon_id` in your own
 associated with it: open an issue at
 [github.com/pshenok/stackcanvas](https://github.com/pshenok/stackcanvas)
 with the `anon_id` value (never anything else from the config file) and
-we'll delete the matching rows from Analytics Engine and the R2 mirror.
+we'll delete the matching records from the S3 mirror.
 
 ## How to verify this yourself
 

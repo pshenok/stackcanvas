@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
   # Lets release.yml's `verify` job run this exact workflow (unit matrix,
-  # check-plugin, telemetry-worker, e2e) with zero duplicated steps — one
+  # check-plugin, telemetry-collector, e2e) with zero duplicated steps — one
   # place to keep "full CI" in sync, per docs/SPEC.md's release chapter.
   workflow_call:
 
@@ -68,19 +68,19 @@ jobs:
           node-version: 22
       - run: node scripts/check-plugin.mjs
 
-  telemetry-worker:
+  telemetry-collector:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: telemetry-worker
+        working-directory: telemetry-collector
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: telemetry-worker/package-lock.json
-      # Not part of the pnpm workspace by design (see telemetry-worker/package.json) —
+          cache-dependency-path: telemetry-collector/package-lock.json
+      # Not part of the pnpm workspace by design (see telemetry-collector/package.json) —
       # its own npm install/test, independent of the root pnpm install above.
       - run: npm ci
       - run: npm run typecheck

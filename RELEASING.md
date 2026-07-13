@@ -108,7 +108,7 @@ spending CI minutes on the rest.
 
 1. **`verify`** — runs the exact same workflow every PR runs (`ci.yml`,
    called as a reusable workflow: unit tests on Node 20/22, `check-plugin`,
-   the telemetry-worker suite, Playwright e2e). No separate copy of these
+   the telemetry-collector suite, Playwright e2e). No separate copy of these
    steps to keep in sync.
 2. **`build`** — `pnpm build:pkg`, then `npm pack` inside `packages/mcp`,
    uploads the resulting tarball as a workflow artifact named
@@ -261,7 +261,7 @@ real publish:
       earliest interest signal is captured in public and durably (not
       scattered across HN/Reddit comment threads).
 - [ ] Telemetry is live end-to-end (`t.stackcanvas.dev` responding — see
-      `telemetry-worker/README.md`) *before* launch traffic hits, so the
+      `telemetry-collector/README.md`) *before* launch traffic hits, so the
       2026-08-15 gate's numbers start accruing from day one, not from
       whenever someone notices the collector was never deployed.
 
