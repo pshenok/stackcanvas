@@ -10,4 +10,4 @@
 // script) is release-engineering scope (docs/SPEC.md Telemetry chapter, §5 /
 // increment 8), not part of the emitter wiring here — keep the two in sync
 // by hand until that lands.
-export const VERSION = '0.1.0'
+export const VERSION = '0.2.0'
