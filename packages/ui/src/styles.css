@@ -39,6 +39,8 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
 .status-pill.status-update { background: #fef9c3; }
 .status-pill.status-delete { background: #fee2e2; }
 .status-pill.status-replace { background: #f3e8ff; }
+.source-row { display: flex; align-items: center; gap: 6px; margin: 6px 0;
+  font-size: 11px; color: #64748b; }
 .inspector-actions { display: flex; gap: 6px; margin: 8px 0; }
 .inspector-actions button { font-size: 12px; padding: 4px 8px; border: 1px solid #e2e8f0;
   border-radius: 6px; background: #fff; cursor: pointer; }

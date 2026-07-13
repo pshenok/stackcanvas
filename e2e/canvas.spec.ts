@@ -18,6 +18,13 @@ test('palette click creates a dashed draft and Apply posts the intent', async ({
   await expect(page.locator('.resource-node.draft')).toHaveCount(0)
 })
 
+test('clicking a node shows its origin in the inspector source row', async ({ page }) => {
+  await page.goto('/')
+  await page.getByText('web', { exact: true }).click()
+  await expect(page.locator('.source-row')).toBeVisible()
+  await expect(page.locator('.source-row')).toContainText('terraform')
+})
+
 test('context menu marks a node for removal', async ({ page }) => {
   await page.goto('/')
   await page.getByText('web', { exact: true }).click({ button: 'right' })

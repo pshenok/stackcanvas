@@ -27,3 +27,24 @@ export function ResourceIcon({ type }: { type: string }) {
     </svg>
   )
 }
+
+// Provider/origin glyph — distinct from ResourceIcon (which keys off the
+// resource *type*). 'terraform' gets a layered-squares glyph evoking stacked
+// state layers; any other provider id (e.g. a future live-scan origin) falls
+// back to a generic database/cloud glyph. SVG only, never emoji.
+export function SourceIcon({ origin }: { origin: string }) {
+  const isTerraform = origin === 'terraform'
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.4" className="icon">
+      {isTerraform
+        ? <>
+            <rect x="2" y="2" width="7" height="7" fill="none" />
+            <rect x="7" y="7" width="7" height="7" fill="none" />
+          </>
+        : <>
+            <path d="M4 5.5a4 4 0 118 0" fill="none" />
+            <path d="M3.5 5.5A2.5 2.5 0 001 8a2.5 2.5 0 002.5 2.5h9A2.5 2.5 0 0015 8a2.5 2.5 0 00-2.5-2.5" fill="none" />
+          </>}
+    </svg>
+  )
+}

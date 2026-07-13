@@ -1,4 +1,5 @@
 import { useStore } from './store.js'
+import { SourceIcon } from './icons.js'
 
 function Value({ v }: { v: unknown }) {
   if (v === undefined) return <code>—</code>
@@ -56,6 +57,12 @@ export function Inspector() {
         <span className={`status-pill status-${node.status}`}>{node.status}</span>
         <span className="type-pill">{node.type}</span>
       </div>
+      {node.origin && (
+        <div className="source-row">
+          <SourceIcon origin={node.origin} />
+          <span>{node.origin}</span>
+        </div>
+      )}
       <div className="inspector-actions">
         {!(node.id in modifies) && (
           <button onClick={() => requestModify(node.id, '')}>Modify</button>
