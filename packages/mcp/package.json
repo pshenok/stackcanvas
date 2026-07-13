@@ -29,7 +29,7 @@
     "@types/node": "^22.0.0",
     "tsup": "^8.0.0"
   },
-  "description": "Live infrastructure canvas for Claude Code: see what your AI agent is about to do to your Terraform \u2014 and approve it \u2014 before it happens. Local-first, credentials never leave your machine.",
+  "description": "Live infrastructure canvas for AI coding agents (MCP): see what your agent is about to do to your Terraform \u2014 and approve it \u2014 before it happens. Local-first, credentials never leave your machine.",
   "license": "MIT",
   "repository": {
     "type": "git",
