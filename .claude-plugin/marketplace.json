@@ -1,0 +1,13 @@
+{
+  "name": "stackcanvas",
+  "description": "Live infrastructure canvas for Claude Code.",
+  "owner": { "name": "kp", "url": "https://github.com/pshenok" },
+  "plugins": [
+    {
+      "name": "stackcanvas",
+      "source": "./plugin",
+      "description": "Live infrastructure canvas for Claude Code: watch the agent build your Terraform, drag new resources, the agent writes the HCL.",
+      "category": "infrastructure"
+    }
+  ]
+}
