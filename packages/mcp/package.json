@@ -2,9 +2,15 @@
   "name": "stackcanvas",
   "version": "0.2.0",
   "type": "module",
-  "main": "src/server.ts",
-  "bin": { "stackcanvas": "./dist/cli.js" },
-  "files": ["dist", "ui-dist", "README.md"],
+  "main": "dist/cli.js",
+  "bin": {
+    "stackcanvas": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "ui-dist",
+    "README.md"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsup"
