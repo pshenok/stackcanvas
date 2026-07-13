@@ -68,8 +68,13 @@ body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
   cursor: pointer; font-size: 13px; }
 .context-menu button:hover { background: #f1f5f9; }
 .palette-pack { display: flex; flex-direction: column; gap: 4px; }
-.palette-pack h5 { margin: 6px 0 2px; font-size: 11px; color: #64748b;
-  text-transform: uppercase; letter-spacing: 0.05em; }
+.palette-pack summary { margin: 6px 0 2px; font-size: 11px; color: #64748b;
+  text-transform: uppercase; letter-spacing: 0.05em; font-family: ui-monospace, monospace;
+  cursor: pointer; user-select: none; list-style: revert; }
+.palette-pack summary:hover { color: #0f172a; }
+.palette-pack-count { color: #94a3b8; font-weight: normal; }
+.palette-pack[open] summary { margin-bottom: 4px; }
+.palette-pack .palette-item { margin-left: 2px; }
 .consent-banner { position: fixed; right: 16px; bottom: 16px; z-index: 40; width: 300px;
   background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px #0002;
   padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }

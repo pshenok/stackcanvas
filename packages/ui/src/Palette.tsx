@@ -9,15 +9,15 @@ export function Palette() {
   return (
     <aside className="palette">
       <h4>Add resource</h4>
-      {PROVIDER_PACKS.map(pack => (
-        <section key={pack.provider} className="palette-pack">
-          <h5>{pack.label}</h5>
+      {PROVIDER_PACKS.map((pack, i) => (
+        <details key={pack.provider} className="palette-pack" open={i === 0}>
+          <summary>{pack.label} <span className="palette-pack-count">{pack.items.length}</span></summary>
           {pack.items.map(p => (
             <button key={p.type} className="palette-item" onClick={() => addDraft(p.type)}>
               <ResourceIcon type={p.type} /> {p.label}
             </button>
           ))}
-        </section>
+        </details>
       ))}
       <div className="palette-custom">
         <input

@@ -78,11 +78,14 @@ What's provider-specific is only the curation layer, shipped as **provider packs
 
 - a palette pack (`packages/ui/src/resource-palette.ts`) — curated drag-and-drop types
 - containment rules (`DEFAULT_CONTAINMENT_RULES` in `@stackcanvas/core`) — which
-  resources render as visual containers (AWS VPC/subnet today)
+  resources render as visual containers (AWS VPC/subnet, GCP network/subnetwork,
+  Azure subnet, Cloudflare zone today)
 - icon patterns (`packages/ui/src/icons.tsx`)
 
-AWS ships first. Adding a GCP/Azure/other pack is pure data and makes a great
-first PR.
+Four packs ship today: **AWS** (complete — the reference pack) and **GCP /
+Azure / Cloudflare starter packs** covering the common resource types per
+provider. Rounding out a starter pack, or adding a new provider entirely, is
+pure data and makes a great first PR.
 
 ## OpenTofu
 

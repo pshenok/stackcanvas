@@ -46,6 +46,16 @@ test('nodes can be dragged', async ({ page }) => {
   expect(moved).toBeGreaterThan(50)
 })
 
+test('GCP accordion palette item creates a draft node with provider google', async ({ page }) => {
+  await page.goto('/')
+  // GCP is collapsed by default (only AWS opens on load) — expand it first.
+  await page.locator('.palette-pack summary', { hasText: 'GCP' }).click()
+  await page.getByRole('button', { name: 'Compute instance' }).click()
+  const draft = page.locator('.resource-node.draft')
+  await expect(draft).toBeVisible()
+  await expect(draft.locator('.type')).toHaveText('google_compute_instance')
+})
+
 test('connecting two existing nodes draws a draft edge and Apply sends a modify', async ({ page }) => {
   await page.goto('/')
   const source = page.locator('.react-flow__node', { hasText: 'db' })
