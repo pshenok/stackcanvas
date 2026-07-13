@@ -142,6 +142,30 @@ export class CanvasServer {
 
   protected buildApp(): Hono {
     const app = new Hono()
+    // DNS-rebinding / CSRF guard: the server can't know its own port here (it
+    // binds after buildApp() runs), so only the hostname portion of Host is
+    // checked; any port is accepted. Scoped to POST — GETs are read-only and
+    // not worth the complexity. Fails closed on a missing/malformed Host.
+    app.use('/api/*', async (c, next) => {
+      if (c.req.method !== 'POST') return next()
+      const host = c.req.header('host') ?? ''
+      const hostname = host.split(':')[0]
+      if (hostname !== '127.0.0.1' && hostname !== 'localhost')
+        return c.json({ error: 'forbidden origin' }, 403)
+      const origin = c.req.header('origin')
+      if (origin) {
+        try {
+          const originUrl = new URL(origin)
+          if (
+            originUrl.protocol !== 'http:' ||
+            (originUrl.hostname !== '127.0.0.1' && originUrl.hostname !== 'localhost')
+          ) return c.json({ error: 'forbidden origin' }, 403)
+        } catch {
+          return c.json({ error: 'forbidden origin' }, 403)
+        }
+      }
+      return next()
+    })
     app.get('/api/graph', c => c.json(this.graph))
     app.get('/api/meta', c => c.json({ dir: this.dir, stale: this.stale }))
     app.post('/api/intent', async c => {
