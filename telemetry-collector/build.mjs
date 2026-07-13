@@ -28,6 +28,12 @@ await build({
   outfile,
   sourcemap: false,
   logLevel: 'info',
+  // The AWS SDK ships CJS internals that call require('node:https') at module
+  // scope; in an ESM bundle there is no `require`, so Lambda dies on init
+  // ("Dynamic require of node:https is not supported"). Standard shim:
+  banner: {
+    js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+  },
 })
 
 if (!existsSync(outfile)) {
