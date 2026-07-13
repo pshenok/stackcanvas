@@ -1,6 +1,6 @@
 # stackcanvas
 
-Live infrastructure canvas for [Claude Code](https://claude.com/claude-code).
+Live infrastructure canvas for AI coding agents — any agent that speaks [MCP](https://modelcontextprotocol.io) ([Claude Code](https://claude.com/claude-code) is the CI-verified path).
 The agent writes and plans your Terraform — stackcanvas shows it as a living
 diagram. Drag new resources onto the canvas; the agent turns them into
 idiomatic HCL. No SaaS, no credentials leave your machine: everything runs on
@@ -23,7 +23,13 @@ localhost, reading your local state and plan.
    canvas highlights what will change. Only the agent executes Terraform —
    the canvas has no apply button by design.
 
-## Install (Claude Code)
+## Install
+
+stackcanvas is a standard MCP stdio server (`npx -y stackcanvas`) — point any
+MCP-capable coding agent at it. The paths below, in order of how battle-tested
+they are:
+
+### Claude Code (CI-verified)
 
     claude plugin marketplace add pshenok/stackcanvas
     claude plugin install stackcanvas@stackcanvas
@@ -42,12 +48,12 @@ Or without the plugin system:
 Then, inside a repo with Terraform, just ask: *open the stackcanvas canvas
 for this repo*.
 
-## Other MCP clients
+### Other MCP clients
 
-stackcanvas is a standard [MCP](https://modelcontextprotocol.io) server, so
-any MCP-compatible client can run it. The snippets below are **reported to
-work as standard MCP servers; not yet CI-verified** — only the Claude Code
-path above is exercised in CI.
+The snippets below are **reported to work; not yet CI-verified** — only the
+Claude Code path above is exercised in CI. Codex CLI and other MCP-capable
+agents should work with the equivalent stdio config (`npx -y stackcanvas`) —
+untested, reports welcome in issues.
 
 **Cursor** (`.cursor/mcp.json`):
 
