@@ -33,6 +33,24 @@ jobs:
           node-version: 22
       - run: node scripts/check-plugin.mjs
 
+  telemetry-worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: telemetry-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: telemetry-worker/package-lock.json
+      # Not part of the pnpm workspace by design (see telemetry-worker/package.json) —
+      # its own npm install/test, independent of the root pnpm install above.
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   e2e:
     runs-on: ubuntu-latest
     steps:
