@@ -4,6 +4,10 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Lets release.yml's `verify` job run this exact workflow (unit matrix,
+  # check-plugin, telemetry-worker, e2e) with zero duplicated steps — one
+  # place to keep "full CI" in sync, per docs/SPEC.md's release chapter.
+  workflow_call:
 
 jobs:
   unit:

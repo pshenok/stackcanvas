@@ -1,0 +1,178 @@
+name: Release
+
+# Manually dispatched: a founder runs `scripts/bump-version.mjs`, commits,
+# merges to main, then dispatches this workflow with the version that was
+# just bumped to. This workflow verifies, builds, packs, tags, and drafts a
+# GitHub Release — but it does NOT publish to npm. See RELEASING.md for the
+# full runbook and why: npm 2FA requires a human OTP, and npm trusted
+# publishing (OIDC) is not configured for this package yet (see the
+# `publish` job below, which is scaffolded and disabled until it is).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version being released (must equal packages/mcp/package.json "version", e.g. 0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  # Reserved for the disabled OIDC-provenance publish job below — unused
+  # while that job stays `if: false`, harmless to grant now.
+  id-token: write
+
+jobs:
+  # Fails fast, before spending CI minutes on the full suite, if whoever
+  # dispatched this workflow typed a version that doesn't match what's on
+  # the dispatched ref (i.e. bump-version.mjs's commit wasn't merged, or the
+  # wrong version was typed into the dispatch form).
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert dispatch input matches packages/mcp/package.json
+        run: |
+          pkg_version=$(node -p "require('./packages/mcp/package.json').version")
+          if [ "${{ inputs.version }}" != "$pkg_version" ]; then
+            echo "::error::workflow_dispatch version '${{ inputs.version }}' does not match packages/mcp/package.json version '$pkg_version'. Run scripts/bump-version.mjs, commit, and merge to main before dispatching release.yml."
+            exit 1
+          fi
+          echo "dispatched version matches manifests: $pkg_version"
+
+  # The exact same workflow every PR runs (unit matrix, check-plugin,
+  # telemetry-worker, e2e) — see ci.yml's `workflow_call` trigger. Reusing it
+  # rather than copying steps here is what keeps "full CI" from drifting out
+  # of sync between the two workflows.
+  verify:
+    needs: check-version
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:pkg
+      - name: npm pack
+        working-directory: packages/mcp
+        run: npm pack
+      - name: Upload package tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: stackcanvas-${{ inputs.version }}
+          path: packages/mcp/stackcanvas-*.tgz
+          if-no-files-found: error
+          retention-days: 90
+
+  # --- npm trusted publishing — scaffolded, disabled ------------------------
+  # This job is the eventual replacement for the manual `npm publish --otp=`
+  # step in RELEASING.md, once the founder has, on npmjs.com:
+  #   1. registered a "Trusted publisher" for the `stackcanvas` package:
+  #      GitHub Actions, repo `pshenok/stackcanvas`, workflow `release.yml`,
+  #      environment `npm-publish` (matching this job's `environment:` below);
+  #   2. turned on "Require two-factor authentication and disallow tokens"
+  #      for the package, so OIDC (this job) is the only non-human publish
+  #      path and 2FA-from-a-laptop remains the fallback (RELEASING.md).
+  # Once both are done: flip `if: false` to `if: true` (or delete the line)
+  # and delete/soften the manual-publish paragraph this workflow writes into
+  # the release notes below. Nothing else about this job needs to change —
+  # `permissions.id-token: write` is already granted at the workflow level,
+  # and `npm publish --provenance` picks up the OIDC token automatically
+  # when a trusted publisher is configured for the package + workflow.
+  publish:
+    name: npm publish (disabled — see comment above)
+    needs: build
+    if: false
+    environment: npm-publish
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:pkg
+      - name: npm publish --provenance
+        working-directory: packages/mcp
+        run: npm publish --provenance --access public
+      # Once packages/scan-aws exists and is version-locked with
+      # packages/mcp (scripts/bump-version.mjs and check-plugin.mjs already
+      # enforce that), add a second `npm publish --provenance --access
+      # public` step here under `working-directory: packages/scan-aws`,
+      # against its own trusted-publisher config for the same repo/workflow.
+      # See RELEASING.md's "second published package" section.
+
+  tag-and-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download package tarball
+        uses: actions/download-artifact@v4
+        with:
+          name: stackcanvas-${{ inputs.version }}
+          path: dist-tarball
+      - name: Create and push tag
+        run: |
+          TAG="v${{ inputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::tag $TAG already exists"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+      - name: Write manual-publish release note
+        run: |
+          cat > /tmp/release-notes-header.md <<'EOF'
+          ## Manual publish step required
+
+          This workflow builds, verifies, and tags the release, but does
+          **not** publish to npm. Publishing needs a 2FA one-time code from
+          the founder's npm account, and npm trusted publishing (OIDC) isn't
+          configured for this package yet — see the disabled `publish` job
+          in `.github/workflows/release.yml` and `RELEASING.md`. Publish
+          manually, from this tag:
+
+          ```
+          cd packages/mcp && npm publish --access public --otp=<code>
+          ```
+
+          The tarball attached to this release was produced by this
+          workflow's `build` job from the same commit — inspect it, or
+          re-run `npm pack` locally against the `v${{ inputs.version }}` tag,
+          before publishing.
+
+          ---
+
+          EOF
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            dist-tarball/*.tgz \
+            --title "v${{ inputs.version }}" \
+            --notes-file /tmp/release-notes-header.md \
+            --generate-notes

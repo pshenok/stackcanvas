@@ -11,6 +11,13 @@
 //  3. plugin.json's version matches packages/mcp/package.json's version.
 //  4. plugin/skills/stackcanvas/SKILL.md exists and has frontmatter with a
 //     non-empty `name` and `description`.
+//  5. packages/mcp/src/version.ts's exported VERSION matches
+//     packages/mcp/package.json's version (the runtime constant used for the
+//     MCP protocol version and telemetry's app_version — see version.ts's
+//     own header comment).
+//  6. packages/scan-aws/package.json's version matches packages/mcp's,
+//     once that package exists (the two published packages version-lock;
+//     see RELEASING.md's scan-aws extension path). No-op today.
 //
 // Exits 1 with a clear, diff-style message on any failure.
 
@@ -126,6 +133,39 @@ if (!existsSync(skillAbsPath)) {
         errors.push(`${skillPath}: frontmatter missing required field "${field}"`)
       }
     }
+  }
+}
+
+// --- 5. version.ts sync ---------------------------------------------------
+const versionTsPath = 'packages/mcp/src/version.ts'
+const versionTsAbsPath = path.join(root, versionTsPath)
+
+if (!existsSync(versionTsAbsPath)) {
+  errors.push(`${versionTsPath}: file not found`)
+} else {
+  const versionTsSrc = readFileSync(versionTsAbsPath, 'utf8')
+  const match = versionTsSrc.match(/export const VERSION = '([^']*)'/)
+  if (!match) {
+    errors.push(`${versionTsPath}: missing "export const VERSION = '...'" export`)
+  } else if (mcpPackageJson && match[1] !== mcpPackageJson.version) {
+    errors.push(
+      `version mismatch:\n` +
+        `  - ${versionTsPath}: ${JSON.stringify(match[1])}\n` +
+        `  + ${mcpPackageJsonPath}: ${JSON.stringify(mcpPackageJson.version)}`,
+    )
+  }
+}
+
+// --- 6. scan-aws version lock (once that package exists) -----------------
+const scanAwsPackageJsonPath = 'packages/scan-aws/package.json'
+if (existsSync(path.join(root, scanAwsPackageJsonPath))) {
+  const scanAwsPackageJson = readJson(scanAwsPackageJsonPath)
+  if (scanAwsPackageJson && mcpPackageJson && scanAwsPackageJson.version !== mcpPackageJson.version) {
+    errors.push(
+      `version mismatch:\n` +
+        `  - ${scanAwsPackageJsonPath}: ${JSON.stringify(scanAwsPackageJson.version)}\n` +
+        `  + ${mcpPackageJsonPath}: ${JSON.stringify(mcpPackageJson.version)}`,
+    )
   }
 }
 

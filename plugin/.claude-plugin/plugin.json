@@ -1,7 +1,7 @@
 {
   "name": "stackcanvas",
   "description": "Live infrastructure canvas for Claude Code: watch the agent build your Terraform, drag new resources, the agent writes the HCL.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": { "name": "kp", "url": "https://github.com/pshenok" },
   "homepage": "https://github.com/pshenok/stackcanvas",
   "repository": "https://github.com/pshenok/stackcanvas",
