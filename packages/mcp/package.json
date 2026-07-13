@@ -28,5 +28,24 @@
     "@stackcanvas/server": "workspace:*",
     "@types/node": "^22.0.0",
     "tsup": "^8.0.0"
-  }
+  },
+  "description": "Live infrastructure canvas for Claude Code: see what your AI agent is about to do to your Terraform \u2014 and approve it \u2014 before it happens. Local-first, credentials never leave your machine.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pshenok/stackcanvas.git"
+  },
+  "homepage": "https://stackcanvas.dev",
+  "bugs": "https://github.com/pshenok/stackcanvas/issues",
+  "author": "Kostyantyn Pshenychnyy",
+  "keywords": [
+    "terraform",
+    "opentofu",
+    "mcp",
+    "claude-code",
+    "infrastructure-as-code",
+    "devtools",
+    "visualization",
+    "ai-agent"
+  ]
 }
