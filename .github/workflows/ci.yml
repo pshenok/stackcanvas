@@ -28,6 +28,37 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  it-tf:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: terraform
+          - tool: tofu
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: hashicorp/setup-terraform@v3
+        if: matrix.tool == 'terraform'
+        with:
+          terraform_wrapper: false
+      - uses: opentofu/setup-opentofu@v1
+        if: matrix.tool == 'tofu'
+        with:
+          tofu_wrapper: false
+      - run: pnpm install --frozen-lockfile
+      - name: Run terraform.integration.test.ts against ${{ matrix.tool }}
+        env:
+          STACKCANVAS_IT_TF_BIN: ${{ matrix.tool }}
+        run: npx pnpm vitest run packages/server/src/providers/terraform.integration.test.ts
+
   check-plugin:
     runs-on: ubuntu-latest
     steps:
