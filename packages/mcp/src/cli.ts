@@ -27,6 +27,7 @@ async function main(): Promise<void> {
     const dir = arg('dir') ?? process.cwd()
     const fixture = arg('fixture')
     const port = arg('port')
+    const tfBin = arg('tf-bin')
     if (port !== undefined && Number.isNaN(Number(port))) {
       console.error('invalid --port')
       process.exit(1)
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
       uiDist,
       port: port ? Number(port) : undefined,
       runTerraformShow: fixture ? async () => readFileSync(fixture, 'utf8') : undefined,
+      tfBinary: tfBin,
       telemetry,
     })
     const { url } = await server.start()

@@ -248,3 +248,26 @@ test('a refreshOnStart:false provider is never refreshed by start()/refreshGraph
   live.pushSnapshot({ origin: 'fake-live', graph: fakeGraph('fake_thing.x'), stale: null })
   expect(server.getGraph().nodes.some(n => n.id === 'fake_thing.x')).toBe(true)
 })
+
+// --- P2-12 OpenTofu binary resolution tests (issue #26) — new portRangeStart
+// base per the distinct-base convention. tfBinary is passed explicit (used
+// verbatim by resolveTfBinary, no probe), so this stays hermetic regardless
+// of whether terraform/tofu are actually installed on the host. ---
+
+test('tfBinary option flows through to TerraformProvider.binaryUsed and the /api/meta label', async () => {
+  server = new CanvasServer({ dir: makeDir(), tfBinary: 'sc-test-fake-binary', portRangeStart: 22680 })
+  const { url } = await server.start()
+  const meta = await (await fetch(`${url}/api/meta`)).json()
+  const tf = meta.providers.find((p: { origin: string }) => p.origin === 'terraform')
+  expect(tf.label).toBe(`Terraform (${server.dir}) via sc-test-fake-binary`)
+})
+
+test('without tfBinary and an injected runTerraformShow, the label carries no binary suffix (unchanged)', async () => {
+  server = new CanvasServer({
+    dir: makeDir(), runTerraformShow: async () => stateFixture, portRangeStart: 22680,
+  })
+  const { url } = await server.start()
+  const meta = await (await fetch(`${url}/api/meta`)).json()
+  const tf = meta.providers.find((p: { origin: string }) => p.origin === 'terraform')
+  expect(tf.label).toBe(`Terraform (${server.dir})`)
+})

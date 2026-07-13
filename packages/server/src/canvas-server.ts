@@ -13,7 +13,7 @@ import {
 import { findPort } from './find-port.js'
 import { IntentQueue } from './intent-queue.js'
 import { nodesBucket, TelemetryClient } from './telemetry.js'
-import { TerraformProvider, type TerraformShowRunner } from './providers/terraform.js'
+import { binaryKind, TerraformProvider, type TerraformShowRunner } from './providers/terraform.js'
 
 const intentSchema = z.object({
   add: z.array(z.object({
@@ -46,6 +46,9 @@ export interface CanvasServerOptions {
   /** First port findPort probes when no fixed port is given (default 4680).
    *  Tests use distinct bases so parallel suites never contend. */
   portRangeStart?: number
+  /** Explicit terraform/tofu binary; forwarded to TerraformProvider (used
+   *  verbatim, skipping PATH detection — see resolveTfBinary). */
+  tfBinary?: string
   /** Injectable for tests; defaults to a TelemetryClient reading/writing
    *  ~/.stackcanvas/config.json (or STACKCANVAS_CONFIG_DIR if set). */
   telemetry?: TelemetryClient
@@ -83,7 +86,7 @@ export class CanvasServer {
     this.fixedPort = opts.port
     this.portRangeStart = opts.portRangeStart ?? 4680
     this.telemetry = opts.telemetry ?? new TelemetryClient({ appVersion: '0.1.0' })
-    this.tf = new TerraformProvider({ dir: opts.dir, runShow: opts.runTerraformShow })
+    this.tf = new TerraformProvider({ dir: opts.dir, runShow: opts.runTerraformShow, binary: opts.tfBinary })
     this.providers = [this.tf]
     this.extraProviders = opts.extraProviders ?? []
     this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
@@ -329,12 +332,13 @@ export class CanvasServer {
     // One canvas_opened per successful start() — covers both `stackcanvas
     // serve` and the MCP open_canvas path (which calls start() once per new
     // canvas and never re-calls it for a reused one, since start() throws on
-    // a second call). tf_bin degrades to 'unknown' until resolveTfBinary /
-    // TerraformProvider ships with the OpenTofu-detection increment.
+    // a second call). tf_bin reads TerraformProvider.binaryUsed (resolved by
+    // tf.init()/refreshGraph() above); it degrades to 'unknown' whenever
+    // binaryUsed is null — no binary detected, or runShow was injected.
     this.telemetry.emit({
       event: 'canvas_opened',
       nodes_bucket: nodesBucket(this.graph.nodes.length),
-      tf_bin: 'unknown',
+      tf_bin: binaryKind(this.tf.binaryUsed),
     })
     // Pure sugar over addProvider(): a refreshOnStart provider is refreshed
     // via addProvider's own conditional refresh, a refreshOnStart:false one

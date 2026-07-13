@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { ProviderSnapshot } from '@stackcanvas/core'
-import { defaultRunner, TerraformProvider } from './terraform.js'
+import { binaryKind, defaultRunner, resolveTfBinary, TerraformProvider } from './terraform.js'
 
 const stateFixture = readFileSync(
   new URL('../../../core/test/fixtures/state.json', import.meta.url), 'utf8',
@@ -156,4 +156,148 @@ test('dispose() is idempotent — calling it twice resolves cleanly', async () =
   await provider.init()
   await provider.dispose()
   await expect(provider.dispose()).resolves.toBeUndefined()
+})
+
+// ---------------------------------------------------------------------------
+// resolveTfBinary / createShowRunner / binaryKind (P2-12, issue #26)
+// ---------------------------------------------------------------------------
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
+test('resolveTfBinary: explicit argument wins over everything, without probing', async () => {
+  const probe = vi.fn(async () => true)
+  const bin = await resolveTfBinary('/custom/path/mytf', { probe })
+  expect(bin).toBe('/custom/path/mytf')
+  expect(probe).not.toHaveBeenCalled()
+})
+
+test('resolveTfBinary: STACKCANVAS_TF_BIN env wins over PATH probing', async () => {
+  vi.stubEnv('STACKCANVAS_TF_BIN', 'my-tofu-fork')
+  const probe = vi.fn(async () => true)
+  const bin = await resolveTfBinary(undefined, { probe })
+  expect(bin).toBe('my-tofu-fork')
+  expect(probe).not.toHaveBeenCalled()
+})
+
+test('resolveTfBinary: explicit argument wins over STACKCANVAS_TF_BIN too', async () => {
+  vi.stubEnv('STACKCANVAS_TF_BIN', 'env-bin')
+  const probe = vi.fn(async () => true)
+  const bin = await resolveTfBinary('explicit-bin', { probe })
+  expect(bin).toBe('explicit-bin')
+  expect(probe).not.toHaveBeenCalled()
+})
+
+test('resolveTfBinary: PATH fallback probes terraform before tofu, stopping on first pass', async () => {
+  const calls: string[] = []
+  const probe = vi.fn(async (bin: string) => { calls.push(bin); return bin === 'terraform' })
+  const bin = await resolveTfBinary(undefined, { probe })
+  expect(bin).toBe('terraform')
+  expect(calls).toEqual(['terraform']) // tofu never probed once terraform passes
+})
+
+test('resolveTfBinary: falls through to tofu when the terraform probe fails silently', async () => {
+  const calls: string[] = []
+  const probe = vi.fn(async (bin: string) => { calls.push(bin); return bin === 'tofu' })
+  const bin = await resolveTfBinary(undefined, { probe })
+  expect(bin).toBe('tofu')
+  expect(calls).toEqual(['terraform', 'tofu'])
+})
+
+test('resolveTfBinary: returns null when neither terraform nor tofu probes succeed', async () => {
+  const probe = vi.fn(async () => false)
+  const bin = await resolveTfBinary(undefined, { probe })
+  expect(bin).toBeNull()
+})
+
+test('resolveTfBinary performs a fresh probe on every call — no internal caching, so a later '
+  + 'call recovers once a binary becomes available (re-probe recovery)', async () => {
+  let installed = false
+  const probe = vi.fn(async (bin: string) => installed && bin === 'terraform')
+  expect(await resolveTfBinary(undefined, { probe })).toBeNull()
+  installed = true
+  expect(await resolveTfBinary(undefined, { probe })).toBe('terraform')
+})
+
+test('binaryKind maps a resolved binary to terraform/tofu/unknown by basename', () => {
+  expect(binaryKind('terraform')).toBe('terraform')
+  expect(binaryKind('/usr/local/bin/terraform')).toBe('terraform')
+  expect(binaryKind('terraform.exe')).toBe('terraform')
+  expect(binaryKind('tofu')).toBe('tofu')
+  expect(binaryKind('/opt/homebrew/bin/tofu')).toBe('tofu')
+  expect(binaryKind('some-custom-wrapper')).toBe('unknown')
+  expect(binaryKind(null)).toBe('unknown')
+})
+
+// ---------------------------------------------------------------------------
+// TerraformProvider binary detection wiring (P2-12) — hermetic PATH swap via
+// real (fake) executables, so it exercises the real execFile probe/runner
+// wiring without depending on terraform/tofu actually being installed.
+// ---------------------------------------------------------------------------
+
+function writeFakeBinary(dir: string, name: string): void {
+  const path = join(dir, name)
+  // Responds to `version` (the resolveTfBinary probe) and `show -json ...`
+  // (the runner) with just enough to satisfy parseState. Uses only shell
+  // builtins (echo/if/exit) — no external PATH-resolved commands — so it
+  // works even when PATH is stubbed down to just this fake-bin dir.
+  writeFileSync(path, [
+    '#!/bin/sh',
+    'if [ "$1" = "version" ]; then exit 0; fi',
+    'echo \'{"format_version":"1.0","values":{"root_module":{"resources":[]}}}\'',
+    '',
+  ].join('\n'))
+  chmodSync(path, 0o755)
+}
+
+test('TerraformProvider: no injected runShow and no binary on PATH resolves to '
+  + 'stale + binaryUsed null', async () => {
+  const dir = makeDir()
+  const emptyPathDir = mkdtempSync(join(tmpdir(), 'sc-emptypath-'))
+  vi.stubEnv('PATH', emptyPathDir) // hermetic: real terraform/tofu on this machine is unreachable
+  provider = new TerraformProvider({ dir })
+  const snap = await provider.refresh()
+  expect(provider.binaryUsed).toBeNull()
+  expect(snap.stale).toBe('No terraform or tofu binary found in PATH. Install one or set STACKCANVAS_TF_BIN.')
+  expect(provider.label).toBe(`Terraform (${dir})`)
+}, 15000)
+
+test('TerraformProvider: re-probes and recovers once a binary appears on PATH, no restart needed', async () => {
+  const dir = makeDir()
+  const emptyPathDir = mkdtempSync(join(tmpdir(), 'sc-emptypath-'))
+  vi.stubEnv('PATH', emptyPathDir)
+  provider = new TerraformProvider({ dir })
+  const first = await provider.refresh()
+  expect(first.stale).not.toBeNull()
+  expect(provider.binaryUsed).toBeNull()
+
+  const fakeBinDir = mkdtempSync(join(tmpdir(), 'sc-fakebin-'))
+  writeFakeBinary(fakeBinDir, 'terraform')
+  vi.stubEnv('PATH', fakeBinDir)
+
+  const second = await provider.refresh()
+  expect(second.stale).toBeNull()
+  expect(provider.binaryUsed).toBe('terraform')
+  expect(provider.label).toBe(`Terraform (${dir}) via terraform`)
+}, 15000)
+
+test('TerraformProvider: an injected runShow skips probing entirely — binaryUsed stays null', async () => {
+  const dir = makeDir()
+  provider = new TerraformProvider({ dir, runShow: async () => stateFixture })
+  await provider.refresh()
+  expect(provider.binaryUsed).toBeNull()
+  expect(provider.label).toBe(`Terraform (${dir})`)
+})
+
+test('TerraformProvider: an explicit binary option is used verbatim, skipping probing', async () => {
+  const dir = makeDir()
+  const fakeBinDir = mkdtempSync(join(tmpdir(), 'sc-fakebin-'))
+  writeFakeBinary(fakeBinDir, 'tofu')
+  vi.stubEnv('PATH', fakeBinDir)
+  provider = new TerraformProvider({ dir, binary: 'tofu' })
+  const snap = await provider.refresh()
+  expect(provider.binaryUsed).toBe('tofu')
+  expect(snap.stale).toBeNull()
+  expect(provider.label).toBe(`Terraform (${dir}) via tofu`)
 })

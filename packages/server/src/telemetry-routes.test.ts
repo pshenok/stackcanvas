@@ -111,8 +111,32 @@ test('canvas_opened is emitted from start() once consent is granted', async () =
   expect(envelope.payload).toEqual({
     event: 'canvas_opened',
     nodes_bucket: nodesBucket(server.getGraph().nodes.length),
-    tf_bin: 'unknown', // resolveTfBinary/TerraformProvider ships with the source-provider section
+    // An injected runTerraformShow skips binary detection entirely (see
+    // TerraformProvider), so binaryUsed stays null and binaryKind() maps
+    // that to 'unknown' — this is the resolved value now, not a hardcode.
+    tf_bin: 'unknown',
   })
+})
+
+// P2-12 (issue #26): tf_bin now reads TerraformProvider.binaryUsed via
+// binaryKind() instead of a hardcoded 'unknown'. tfBinary is passed explicit
+// so binaryUsed is set verbatim (no probe) — hermetic regardless of whether
+// terraform/tofu are actually installed on the host running this test.
+test('canvas_opened tf_bin reflects the resolved binary kind, not a hardcoded value', async () => {
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }))
+  const telemetry = makeTelemetryClient(fetchImpl)
+  telemetry.setConsent(true)
+  fetchImpl.mockClear()
+
+  server = new CanvasServer({
+    dir: makeDir(), tfBinary: 'tofu', portRangeStart: 20680, telemetry,
+  })
+  await server.start()
+
+  expect(fetchImpl).toHaveBeenCalledTimes(1)
+  const [, init] = fetchImpl.mock.calls[0]!
+  const envelope = JSON.parse(String(init!.body)) as { payload: TelemetryProps }
+  expect(envelope.payload).toMatchObject({ event: 'canvas_opened', tf_bin: 'tofu' })
 })
 
 test('canvas_opened is NOT emitted from start() when consent is unset', async () => {
