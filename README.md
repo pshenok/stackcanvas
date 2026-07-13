@@ -25,11 +25,46 @@ localhost, reading your local state and plan.
 
 ## Install (Claude Code)
 
+    claude plugin marketplace add pshenok/stackcanvas
+    claude plugin install stackcanvas@stackcanvas
+
+or without the plugin system:
+
     claude mcp add stackcanvas -- npx -y stackcanvas
 
 Then, inside a repo with Terraform:
 
     /stackcanvas
+
+This is the verified path — the CI `check-plugin` job validates the plugin
+and marketplace manifests on every push.
+
+## Other MCP clients
+
+stackcanvas is a standard [MCP](https://modelcontextprotocol.io) server, so
+any MCP-compatible client can run it. The snippets below are **reported to
+work as standard MCP servers; not yet CI-verified** — only the Claude Code
+path above is exercised in CI.
+
+**Cursor** (`.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "stackcanvas": { "command": "npx", "args": ["-y", "stackcanvas"] }
+  }
+}
+```
+
+**Windsurf** (`~/.codeium/windsurf/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "stackcanvas": { "command": "npx", "args": ["-y", "stackcanvas"] }
+  }
+}
+```
 
 ## Multi-cloud
 
