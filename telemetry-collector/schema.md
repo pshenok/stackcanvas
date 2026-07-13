@@ -1,9 +1,9 @@
 # stackcanvas telemetry collector — storage layout + week-2 reopen query
 
-Ported from `telemetry-worker/schema.sql` (Cloudflare Worker: Workers
-Analytics Engine + R2) to the AWS Lambda collector's storage: **Kinesis
-Data Firehose -> S3**, no separate aggregate-query engine — one NDJSON
-system of record, queried with DuckDB.
+This storage layout replaced the retired Cloudflare Worker collector (which
+used Workers Analytics Engine + R2) with the AWS Lambda collector's storage:
+**Kinesis Data Firehose -> S3**, no separate aggregate-query engine — one
+NDJSON system of record, queried with DuckDB.
 
 ## 1. Why Firehose -> S3, not a DB
 

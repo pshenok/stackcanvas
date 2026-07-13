@@ -5,8 +5,8 @@ telemetry. Source-in-repo, same as its predecessor; the user-facing
 contract (what's sent, when, how to opt out) lives in
 [`TELEMETRY.md`](../TELEMETRY.md) at the repo root.
 
-**This replaces `telemetry-worker/`** (a Cloudflare Worker) — issue #35
-ported the collector to AWS Lambda. The endpoint URL is unchanged:
+**This replaced the retired `telemetry-worker` Cloudflare Worker** — issue
+#35 ported the collector to AWS Lambda. The endpoint URL is unchanged:
 **`https://t.stackcanvas.dev/e`**. Nothing in `packages/server/src/telemetry.ts`
 (the client) or `TELEMETRY.md`'s validation contract changed; only where the
 collector runs and how events are stored changed. See `src/handler.ts`'s
