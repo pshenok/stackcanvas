@@ -83,6 +83,14 @@ What's provider-specific is only the curation layer, shipped as **provider packs
 AWS ships first. Adding a GCP/Azure/other pack is pure data and makes a great
 first PR.
 
+## OpenTofu
+
+stackcanvas works with [OpenTofu](https://opentofu.org) as a drop-in replacement
+for Terraform: it looks for a `terraform` binary on `PATH` first, then falls
+back to `tofu`. Override the choice with `--tf-bin <path>` on `stackcanvas serve`,
+or set `STACKCANVAS_TF_BIN` (e.g. in your MCP client's `.mcp.json` `env` block)
+to pin it — both take precedence over auto-detection.
+
 ## Tools
 
 | Tool | Purpose |

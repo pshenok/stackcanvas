@@ -53,7 +53,8 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
     }
     return ok(`Canvas running at ${url}. The graph live-updates as tfstate changes. `
       + 'Run `terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json` '
-      + 'to show the plan diff, then call await_canvas_intent to receive user edits.')
+      + '(or `tofu plan …` with OpenTofu) to show the plan diff, then call await_canvas_intent '
+      + 'to receive user edits.')
   })
 
   mcp.registerTool('load_plan', {
