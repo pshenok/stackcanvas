@@ -106,7 +106,7 @@ to pin it — both take precedence over auto-detection.
 
 ## Demo
 
-`examples/demo` contains a small AWS config. Run `terraform init && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json` there and open the canvas to see create-highlighting. `plan` does not create or modify any resources — nothing is provisioned until `terraform apply` (note: the AWS provider still needs credentials and makes read-only API calls during plan).
+`examples/local-demo` is a **zero-credential** playground: `terraform init && terraform apply -auto-approve` creates real state using only local providers (no cloud account touched), and the canvas renders it — including sensitive masking on the generated password. `examples/demo` contains a small AWS config. Run `terraform init && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json` there and open the canvas to see create-highlighting. `plan` does not create or modify any resources — nothing is provisioned until `terraform apply` (note: the AWS provider still needs credentials and makes read-only API calls during plan).
 
 ## Telemetry
 
