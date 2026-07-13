@@ -4,6 +4,7 @@ import { summarizeGraph } from '@stackcanvas/core'
 import { CanvasServer } from '@stackcanvas/server'
 import { z } from 'zod'
 import { openBrowser as defaultOpenBrowser } from './open-browser.js'
+import { VERSION } from './version.js'
 
 function looksLikeTerraformRoot(dir: string): boolean {
   if (!existsSync(dir)) return false
@@ -25,7 +26,7 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
   let canvas: CanvasServer | null = null
   let url: string | null = null
 
-  const mcp = new McpServer({ name: 'stackcanvas', version: '0.1.0' })
+  const mcp = new McpServer({ name: 'stackcanvas', version: VERSION })
 
   mcp.registerTool('open_canvas', {
     description:

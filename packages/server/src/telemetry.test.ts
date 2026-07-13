@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test, vi } from 'vitest'
-import { nodesBucket, TelemetryClient, type TelemetryProps } from './telemetry.js'
+import { nodesBucket, TELEMETRY_SCHEMA_VERSION, TelemetryClient, type TelemetryProps } from './telemetry.js'
 
 function makeConfigPath(): string {
   const dir = mkdtempSync(join(tmpdir(), 'sc-telemetry-'))
@@ -188,15 +188,47 @@ test('emit(): no-op when disabled via DO_NOT_TRACK regardless of granted config'
 })
 
 // ---------------------------------------------------------------------------
-// Zero network: default transport never touches the real network
+// Default transport (M1-6 / #10): real `fetch`, gated entirely by consent.
 // ---------------------------------------------------------------------------
 
-test('default transport never calls the real fetch (DARK: zero network calls)', () => {
-  const realFetchSpy = vi.spyOn(globalThis, 'fetch')
+test('default transport never calls the real fetch when consent is unset', () => {
+  const realFetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
   const client = new TelemetryClient({ configPath: makeConfigPath(), appVersion: '0.1.0', env: {} })
-  client.setConsent(true) // emits 'install' internally
   client.emit({ event: 'canvas_opened', nodes_bucket: '1-10', tf_bin: 'terraform' })
   expect(realFetchSpy).not.toHaveBeenCalled()
+  realFetchSpy.mockRestore()
+})
+
+test('default transport never calls the real fetch when consent is denied', () => {
+  const realFetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
+  const configPath = makeConfigPath()
+  const client = new TelemetryClient({ configPath, appVersion: '0.1.0', env: {} })
+  client.setConsent(true)
+  realFetchSpy.mockClear() // ignore the 'install' call from setConsent(true) above
+  client.setConsent(false)
+  client.emit({ event: 'canvas_opened', nodes_bucket: '1-10', tf_bin: 'terraform' })
+  expect(realFetchSpy).not.toHaveBeenCalled()
+  realFetchSpy.mockRestore()
+})
+
+test('default transport never calls the real fetch when disabled via DO_NOT_TRACK, even with a granted config', () => {
+  const configPath = makeConfigPath()
+  writeFileSync(configPath, JSON.stringify({ telemetry: { consent: 'granted', anonId: 'x' } }))
+  const realFetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
+  const client = new TelemetryClient({ configPath, appVersion: '0.1.0', env: { DO_NOT_TRACK: '1' } })
+  client.emit({ event: 'canvas_opened', nodes_bucket: '1-10', tf_bin: 'terraform' })
+  expect(realFetchSpy).not.toHaveBeenCalled()
+  realFetchSpy.mockRestore()
+})
+
+test('default transport calls the real global fetch once consent is granted', () => {
+  const realFetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
+  const client = new TelemetryClient({
+    configPath: makeConfigPath(), appVersion: '0.1.0', env: {}, endpoint: 'https://t.stackcanvas.dev/e',
+  })
+  client.setConsent(true) // emits 'install' via the real default transport
+  expect(realFetchSpy).toHaveBeenCalledTimes(1)
+  expect(realFetchSpy.mock.calls[0]![0]).toBe('https://t.stackcanvas.dev/e')
   realFetchSpy.mockRestore()
 })
 
@@ -299,4 +331,58 @@ test.each(ALL_EVENT_PROPS)('envelope allowlist tripwire: $event', props => {
   const payload = envelope.payload as Record<string, unknown>
   const allowedPayloadKeys = ALLOWED_PAYLOAD_KEYS[props.event]!.slice().sort()
   expect(Object.keys(payload).sort()).toEqual(allowedPayloadKeys)
+})
+
+// ---------------------------------------------------------------------------
+// Schema version const
+// ---------------------------------------------------------------------------
+
+test('TELEMETRY_SCHEMA_VERSION is 1 and is what emit() puts on the envelope', () => {
+  expect(TELEMETRY_SCHEMA_VERSION).toBe(1)
+  const configPath = makeConfigPath()
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }))
+  const client = new TelemetryClient({ configPath, appVersion: '0.1.0', env: {}, fetchImpl })
+  client.setConsent(true)
+  fetchImpl.mockClear()
+
+  client.emit({ event: 'canvas_opened', nodes_bucket: '0', tf_bin: 'unknown' })
+
+  const [, init] = fetchImpl.mock.calls[0]!
+  const envelope = JSON.parse(String(init!.body)) as { schema: number }
+  expect(envelope.schema).toBe(TELEMETRY_SCHEMA_VERSION)
+})
+
+// ---------------------------------------------------------------------------
+// install dedupe across two separate startups (two TelemetryClient
+// instances sharing one on-disk config file, simulating two process
+// launches of `stackcanvas serve` / the MCP server).
+// ---------------------------------------------------------------------------
+
+test('install is emitted exactly once across two separate TelemetryClient instances sharing a config file', () => {
+  const configPath = makeConfigPath()
+
+  // "Startup 1": user grants consent for the first time.
+  const fetchImpl1 = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }))
+  const client1 = new TelemetryClient({ configPath, appVersion: '0.1.0', env: {}, fetchImpl: fetchImpl1 })
+  client1.setConsent(true)
+  expect(fetchImpl1).toHaveBeenCalledTimes(1)
+  const firstBody = JSON.parse(String(fetchImpl1.mock.calls[0]![1]!.body)) as { payload: TelemetryProps }
+  expect(firstBody.payload).toEqual({ event: 'install' })
+
+  // "Startup 2": a brand-new process constructs a fresh TelemetryClient
+  // against the same on-disk config; consent is already granted from
+  // startup 1, so a normal emit (e.g. canvas_opened) must NOT also carry a
+  // second 'install'.
+  const fetchImpl2 = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }))
+  const client2 = new TelemetryClient({ configPath, appVersion: '0.1.0', env: {}, fetchImpl: fetchImpl2 })
+  client2.emit({ event: 'canvas_opened', nodes_bucket: '0', tf_bin: 'unknown' })
+  expect(fetchImpl2).toHaveBeenCalledTimes(1)
+  const secondBody = JSON.parse(String(fetchImpl2.mock.calls[0]![1]!.body)) as { payload: TelemetryProps }
+  expect(secondBody.payload).toEqual({ event: 'canvas_opened', nodes_bucket: '0', tf_bin: 'unknown' })
+
+  // Even if startup 2's process redundantly re-confirms consent (e.g. a
+  // banner re-render calling setConsent(true) again), installReportedAt on
+  // disk still blocks a second 'install'.
+  client2.setConsent(true)
+  expect(fetchImpl2).toHaveBeenCalledTimes(1) // still just the canvas_opened from above — no new 'install'
 })

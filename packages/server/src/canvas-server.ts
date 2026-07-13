@@ -14,7 +14,7 @@ import {
 } from '@stackcanvas/core'
 import { findPort } from './find-port.js'
 import { IntentQueue } from './intent-queue.js'
-import { TelemetryClient } from './telemetry.js'
+import { nodesBucket, TelemetryClient } from './telemetry.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -48,6 +48,13 @@ const MIME: Record<string, string> = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.svg': 'image/svg+xml', '.json': 'application/json', '.ico': 'image/x-icon',
 }
+
+// Server-side allowlist for POST /api/telemetry/event: deliberately narrower
+// than the full TelemetryEventName union so a browser can never spoof
+// install/canvas_opened/intent_sent/scan_run — those only ever originate
+// from code that already holds the TelemetryClient. drift_opened is the one
+// event with no server-side trigger (the drift lens is UI-only).
+const BROWSER_TELEMETRY_EVENTS = new Set(['drift_opened'])
 
 export interface CanvasServerOptions {
   dir: string
@@ -178,6 +185,18 @@ export class CanvasServer {
       const parsed = intentSchema.safeParse(await c.req.json().catch(() => null))
       if (!parsed.success) return c.json({ error: 'invalid intent' }, 400)
       this.intents.push(parsed.data)
+      // Post-validation/normalization, counted by action.kind — the Apply
+      // click is the honest activation moment. adopt/investigate are always
+      // 0 under this v1 wire shape; the intent-v2 pipeline relocates this
+      // hook to count IntentV2.actions by kind instead.
+      this.telemetry.emit({
+        event: 'intent_sent',
+        add: parsed.data.add.length,
+        modify: parsed.data.modify.length,
+        remove: parsed.data.remove.length,
+        adopt: 0,
+        investigate: 0,
+      })
       return c.json({ queued: true }, 202)
     })
     app.get('/api/telemetry', c => c.json({ consent: this.telemetry.getConsent() }))
@@ -186,6 +205,21 @@ export class CanvasServer {
       if (!body || typeof body.granted !== 'boolean') return c.json({ error: 'invalid body' }, 400)
       this.telemetry.setConsent(body.granted)
       return c.json({ consent: this.telemetry.getConsent() }, 200)
+    })
+    // The only path a browser-originated event (currently just
+    // 'drift_opened') uses to reach the server-side TelemetryClient. Always
+    // re-checks consent server-side — never trusts the browser's belief
+    // about its own state — and the response never reveals consent (the UI
+    // already has that from GET /api/telemetry).
+    app.post('/api/telemetry/event', async c => {
+      const body = await c.req.json().catch(() => null) as { name?: unknown } | null
+      const name = body?.name
+      if (typeof name !== 'string' || !BROWSER_TELEMETRY_EVENTS.has(name))
+        return c.json({ error: 'unknown event' }, 400)
+      if (this.telemetry.getConsent() === 'granted') {
+        this.telemetry.emit({ event: 'drift_opened', nodes_bucket: nodesBucket(this.graph.nodes.length) })
+      }
+      return c.json({ ok: true }, 200)
     })
     if (this.uiDist) {
       const dist = resolve(this.uiDist)
@@ -269,6 +303,16 @@ export class CanvasServer {
     // watcher is ready; without this await, changes made right after start()
     // are silently missed there (macOS FSEvents masks the race).
     await new Promise<void>(resolve => this.watcher!.once('ready', () => resolve()))
+    // One canvas_opened per successful start() — covers both `stackcanvas
+    // serve` and the MCP open_canvas path (which calls start() once per new
+    // canvas and never re-calls it for a reused one, since start() throws on
+    // a second call). tf_bin degrades to 'unknown' until resolveTfBinary /
+    // TerraformProvider ships with the source-provider section.
+    this.telemetry.emit({
+      event: 'canvas_opened',
+      nodes_bucket: nodesBucket(this.graph.nodes.length),
+      tf_bin: 'unknown',
+    })
     return { port, url: `http://127.0.0.1:${port}` }
   }
 
