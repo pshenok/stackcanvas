@@ -1,0 +1,158 @@
+name: Claude Code smoke
+
+# docs/SPEC.md §3.2 PR#9 (M1-9, issue #13):
+#
+#   Job `mcp-smoke`   — keyless. Runs on every PR and every push to main.
+#                       Builds the package and spawns the real MCP stdio
+#                       server (scripts/mcp-smoke.mjs), asserting the four
+#                       tools exist and a full open_canvas -> /api/graph ->
+#                       get_graph_summary round trip works. No API key, no
+#                       LLM in the loop — this only catches MCP SDK/protocol
+#                       breakage, which is why it's safe to gate PRs on.
+#   Job `claude-keyed` — keyed. Runs weekly (cron) and on manual dispatch
+#                       only, and only if secrets.ANTHROPIC_API_KEY is set on
+#                       this repo. Installs the real `claude` CLI and asks it
+#                       to call get_graph_summary over the built MCP server —
+#                       the "does the latest Claude Code CLI still work with
+#                       our server" canary. It never gates a merge (it can't
+#                       even run on a PR); on failure it opens or updates a
+#                       tracking issue instead, since a failure here is a
+#                       signal about an external dependency (the CLI, or the
+#                       MCP spec it implements), not a regression in this repo.
+#
+# `workflow_dispatch.spec_break_check`: the MCP spec has a known-in-advance
+# breaking revision landing 2026-07-28 (see docs/SPEC.md's Telemetry chapter,
+# "Risks & open questions" -> Claude Code plugin-schema drift). There is a
+# separate pinned tracking issue for that date (search issues for "2026-07-28
+# MCP spec break"); on that day, dispatch this workflow with this input set
+# to `true` so the run is easy to find in history as *the* compat check for
+# that break, rather than just another weekly run. The input is purely
+# informational/labeling — both jobs run identically regardless of its value;
+# nothing in this file branches on it. Sets up whoever's on point that day to
+# bump `@modelcontextprotocol/sdk` (in packages/mcp/package.json) and re-run
+# this workflow to confirm the fix.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      spec_break_check:
+        description: >-
+          Mark this run as the pinned 2026-07-28 MCP spec-break compat check
+          (informational only — both jobs run the same steps either way).
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-smoke:
+    name: mcp-smoke (keyless)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:pkg
+      - run: node scripts/mcp-smoke.mjs
+
+  # GitHub Actions can't reliably reference `secrets.*` directly in a
+  # job-level `if:` on every GH Enterprise/runner version still in the wild —
+  # the documented workaround is a cheap step that resolves the secret into a
+  # job output, which downstream jobs *can* gate on via `needs.*.outputs`.
+  check-api-key:
+    name: check ANTHROPIC_API_KEY
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      has_key: ${{ steps.check.outputs.has_key }}
+    steps:
+      - id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  claude-keyed:
+    name: claude-keyed (weekly canary)
+    needs: [mcp-smoke, check-api-key]
+    if: needs.check-api-key.outputs.has_key == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:pkg
+      - name: Install Claude Code CLI (latest)
+        run: npm i -g @anthropic-ai/claude-code@latest
+      - name: Generate MCP config pointing at the built cli.js
+        run: |
+          cat > "$RUNNER_TEMP/mcp-config.json" <<EOF
+          {
+            "mcpServers": {
+              "stackcanvas": {
+                "command": "node",
+                "args": ["${{ github.workspace }}/packages/mcp/dist/cli.js"]
+              }
+            }
+          }
+          EOF
+      - name: Ask Claude to call get_graph_summary against the examples fixture
+        working-directory: examples
+        run: |
+          claude -p "Call the get_graph_summary tool and print its output verbatim" \
+            --mcp-config "$RUNNER_TEMP/mcp-config.json" \
+            --allowedTools "mcp__stackcanvas__get_graph_summary" \
+            --max-turns 3
+      # External-dependency canary, not a repo regression signal (see the
+      # file header) — a failure here must never fail a merge, only surface
+      # for a human. Dedupes onto one rolling open issue instead of spamming
+      # a new one every week.
+      - name: Open or update failure-tracking issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          date_str=$(date -u +%Y-%m-%d)
+          body="claude-keyed smoke failed on $date_str (event: ${{ github.event_name }}). Run: $RUN_URL"
+          existing=$(gh issue list --repo "$REPO" --label smoke --state open \
+            --json number,title \
+            --jq '[.[] | select(.title | startswith("Claude Code smoke failed"))][0].number // empty')
+          if [ -n "$existing" ]; then
+            echo "updating existing issue #$existing"
+            gh issue comment "$existing" --repo "$REPO" --body "$body"
+          else
+            echo "creating new issue"
+            gh issue create --repo "$REPO" --title "Claude Code smoke failed $date_str" \
+              --label smoke --body "$body"
+          fi
