@@ -4,19 +4,20 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 // ---------------------------------------------------------------------------
-// DARK telemetry core (M1-4 / issue #8).
+// Telemetry core (M1-4 / issue #8) + real transport and launch emitters
+// (M1-6 / issue #10): install/canvas_opened/intent_sent now wire into
+// cli.ts and canvas-server.ts, and the default transport below forwards to
+// the real global `fetch`.
 //
-// Nothing in this file is wired into canvas-server.ts, cli.ts, or server.ts
-// yet (that's PR#6), and there is no consent UI (PR#5). Nothing in this repo
-// currently constructs a TelemetryClient outside of tests, so this PR ships
-// with literally zero possibility of a network call.
-//
-// As a second, independent layer of defense, TelemetryClient's default
-// transport (`fetchImpl`) is a local no-op, NOT the global `fetch` — even a
-// premature/accidental `new TelemetryClient()` call in production code
-// without an explicit `fetchImpl` cannot reach the network. The real
-// collector endpoint and a network-capable default transport arrive with the
-// collector itself (PR#6/#7).
+// Consent is what actually keeps this network-free, not the transport:
+// emit() (below) is a hard no-op unless getConsent() === 'granted'.
+// getConsent() defaults to 'unset', is forced to 'disabled_env' by
+// DO_NOT_TRACK=1 / STACKCANVAS_TELEMETRY=0 regardless of what's on disk, and
+// otherwise reads only the local config file this module owns
+// (~/.stackcanvas/config.json, or STACKCANVAS_CONFIG_DIR if set). Nothing in
+// this repo grants consent except an explicit user click on the
+// ConsentBanner's "Allow" button (POST /api/telemetry {granted: true}) or an
+// explicit setConsent(true) call.
 // ---------------------------------------------------------------------------
 
 export type TelemetryConsent = 'granted' | 'denied' | 'unset' | 'disabled_env'
@@ -50,8 +51,13 @@ export type TelemetryProps =
   | { event: 'scan_run'; provider: 'aws' | 'gcp' | 'azure' | 'other'; nodes_bucket: NodesBucket }
   | { event: 'drift_opened'; nodes_bucket: NodesBucket } // browser-originated — arrives via POST /api/telemetry/event, never emitted server-side directly
 
+/** The only schema version that has ever existed. Adding a field to any
+ *  payload, or changing envelope shape, requires bumping this AND
+ *  documenting the change in TELEMETRY.md (see the file-level comment). */
+export const TELEMETRY_SCHEMA_VERSION = 1
+
 export interface TelemetryEnvelope {
-  schema: 1
+  schema: typeof TELEMETRY_SCHEMA_VERSION
   anon_id: string
   day: string // 'YYYY-MM-DD' UTC — day precision is the finest time that leaves the machine
   app_version: string // stackcanvas package version
@@ -70,8 +76,14 @@ export interface TelemetryClientOptions {
 
 const DEFAULT_ENDPOINT = 'https://t.stackcanvas.dev/e'
 
-// Intentionally NOT `globalThis.fetch` — see file header. Ignores its args.
-const noopTransport: typeof fetch = async () => new Response(null, { status: 204 })
+// Real transport default: forwards to `globalThis.fetch` at call time (not
+// captured at module-load), so tests can `vi.spyOn(globalThis, 'fetch')` and
+// this always resolves whatever fetch implementation is live when emit()
+// runs. Consent gating in emit() — not this function — is what keeps
+// telemetry silent; see the file-header comment. Fully overridable via
+// TelemetryClientOptions.fetchImpl for tests/dry-runs that want hard
+// network isolation regardless of consent state.
+const defaultTransport: typeof fetch = (input, init) => globalThis.fetch(input, init)
 
 function todayUtc(): string {
   return new Date().toISOString().slice(0, 10)
@@ -119,7 +131,7 @@ export class TelemetryClient {
     const configDir = this.env.STACKCANVAS_CONFIG_DIR || join(homedir(), '.stackcanvas')
     this.configPath = opts.configPath ?? join(configDir, 'config.json')
     this.endpoint = opts.endpoint ?? DEFAULT_ENDPOINT
-    this.fetchImpl = opts.fetchImpl ?? noopTransport
+    this.fetchImpl = opts.fetchImpl ?? defaultTransport
     this.appVersion = opts.appVersion
   }
 
@@ -197,7 +209,7 @@ export class TelemetryClient {
     if (!anonId) return // consent says granted but anonId missing — never send an incomplete envelope
 
     const envelope: TelemetryEnvelope = {
-      schema: 1,
+      schema: TELEMETRY_SCHEMA_VERSION,
       anon_id: anonId,
       day: todayUtc(),
       app_version: this.appVersion,

@@ -1,5 +1,7 @@
 # stackcanvas
 
+[Telemetry: opt-in, anonymous, no infra data — see TELEMETRY.md](TELEMETRY.md)
+
 Live infrastructure canvas for [Claude Code](https://claude.com/claude-code).
 The agent writes and plans your Terraform — stackcanvas shows it as a living
 diagram. Drag new resources onto the canvas; the agent turns them into
@@ -93,6 +95,16 @@ first PR.
 ## Demo
 
 `examples/demo` contains a small AWS config. Run `terraform init && terraform plan -out=tfplan && terraform show -json tfplan > .stackcanvas/plan.json` there and open the canvas to see create-highlighting. `plan` does not create or modify any resources — nothing is provisioned until `terraform apply` (note: the AWS provider still needs credentials and makes read-only API calls during plan).
+
+## Telemetry
+
+stackcanvas can send a handful of anonymous usage counters (installs,
+canvases opened, edits sent, scans run) — **opt-in only**, nothing is sent
+until you click **Allow** on the one-time canvas banner, and `DO_NOT_TRACK=1`
+/ `STACKCANVAS_TELEMETRY=0` always turn it off regardless of that decision.
+No resource names, infrastructure data, or file paths ever leave your
+machine. Full payload, consent model, and how to verify it yourself:
+[TELEMETRY.md](TELEMETRY.md).
 
 ## Development
 
