@@ -87,9 +87,12 @@ export function createMcpServer(deps: McpDeps = {}): McpServer {
   })
 
   mcp.registerTool('await_canvas_intent', {
-    description: 'Block until the user clicks Apply on the canvas, then return their requested '
+    description: 'Block until the user clicks Send-to-agent on the canvas, then return their requested '
       + 'changes as intent JSON: {intent: {add, modify, remove} | null}. null = timeout, call again '
-      + 'in a loop to keep waiting. After receiving an intent, write the Terraform code for it.',
+      + 'in a loop to keep waiting. After receiving an intent, write the Terraform code for it. '
+      + 'After implementing an intent, run terraform plan (write the JSON to .stackcanvas/plan.json) '
+      + 'and call this tool again to keep the loop alive. Never run terraform apply unless the human '
+      + 'explicitly asks.',
     inputSchema: {
       timeoutSeconds: z.number().positive().max(3600).default(45)
         .describe('How long to wait before returning {intent: null}. Default 45s: MCP clients '
