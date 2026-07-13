@@ -1,47 +1,19 @@
-// stackcanvas telemetry collector — M1-7 / issue #11.
+// stackcanvas telemetry collector — event validation — issue #35.
 //
-// See docs/SPEC.md, "Telemetry, CI matrix, release & registry engineering"
-// chapter, §Design/1 ("Transport decision") for the design this implements,
-// and the repo-root TELEMETRY.md for the user-facing contract. This worker
-// is the *only* vendor-side endpoint stackcanvas' own code ever calls out to.
-//
-// Routes:
-//   POST /e       validate + store an envelope, 204 on success
-//   GET  /health  liveness check, always 200
-//   *    *        404 (this includes GET /e, and any CORS preflight OPTIONS
-//                  request — there is no browser client for this endpoint,
-//                  only server-side `fetch` calls from stackcanvas itself,
-//                  so no CORS headers are ever set and preflights are simply
-//                  unmatched routes)
-//
-// Storage: Workers Analytics Engine (aggregate counters, ~90-day retention)
-// + a raw-envelope NDJSON mirror in R2 (long-term system of record), per the
-// chapter's explicit "PostHog vs Cloudflare Worker" transport decision. Both
-// writes are best-effort — a storage failure never turns into an error
-// response to the caller (see docs/SPEC.md "Error handling": "both fail →
-// 204 anyway (client must never see backpressure)").
+// Pure validation module, ported from telemetry-worker/src/index.ts's
+// `validateEnvelope`/`validatePayload` as part of the Cloudflare Worker ->
+// AWS Lambda migration. Zero AWS imports on purpose: this module only
+// touches plain JS/TS (JSON.parse, RegExp, TextEncoder) so it is fully
+// unit-testable with no Lambda runtime, no API Gateway event shape, no
+// network. See src/handler.ts for the Lambda-specific wiring (routing,
+// Firehose) that calls into this.
 //
 // The envelope/payload shapes below intentionally duplicate (rather than
 // import) packages/server/src/telemetry.ts's types: this package is NOT
 // part of the pnpm workspace (see package.json) and ships as a single
-// bundled Worker with no monorepo dependency, so the collector's allowlist
+// bundled Lambda with no monorepo dependency, so the collector's allowlist
 // must be self-contained. Keep the two in sync by hand — TELEMETRY.md is the
 // document of record for the schema either side must match.
-
-export interface AnalyticsEngineDataset {
-  writeDataPoint(point: { blobs?: string[]; doubles?: number[]; indexes?: string[] }): void
-}
-
-export interface R2Bucket {
-  put(key: string, value: string): Promise<unknown>
-}
-
-export interface Env {
-  /** Workers Analytics Engine binding — see wrangler.toml [[analytics_engine_datasets]]. */
-  EVENTS: AnalyticsEngineDataset
-  /** R2 bucket binding for the raw NDJSON mirror — see wrangler.toml [[r2_buckets]]. */
-  BUCKET: R2Bucket
-}
 
 const MAX_BODY_BYTES = 4096
 
@@ -62,7 +34,11 @@ export type TelemetryProps =
   | { event: 'scan_run'; provider: Provider; nodes_bucket: NodesBucket }
   | { event: 'drift_opened'; nodes_bucket: NodesBucket }
 
-export interface TelemetryEnvelope {
+/** A validated envelope, ready to be stamped with `received_at` and shipped
+ *  to Firehose by src/handler.ts. Same shape as the old worker's
+ *  `TelemetryEnvelope` — renamed to `ValidatedEvent` to match this module's
+ *  `validateEvent()` entry point. */
+export interface ValidatedEvent {
   schema: 1
   anon_id: string
   day: string
@@ -72,11 +48,11 @@ export interface TelemetryEnvelope {
   payload: TelemetryProps
 }
 
-/** Envelope allowlist — the "hard allowlist" the chapter requires: any key
- *  outside this set is a 400, not a silent strip (a stripping collector
- *  would mask exactly the accidental-field-growth bug this schema exists to
- *  catch — see the client-side "envelope allowlist tripwire" test this
- *  mirrors, packages/server/src/telemetry.test.ts). */
+/** Envelope allowlist — the "hard allowlist" the original design requires:
+ *  any key outside this set is a 400, not a silent strip (a stripping
+ *  collector would mask exactly the accidental-field-growth bug this schema
+ *  exists to catch — see the client-side "envelope allowlist tripwire" test
+ *  this mirrors, packages/server/src/telemetry.test.ts). */
 const ENVELOPE_KEYS = ['schema', 'anon_id', 'day', 'app_version', 'platform', 'node_major', 'payload'] as const
 
 /** Per-event payload key allowlist — mirrors TelemetryProps above exactly. */
@@ -91,7 +67,7 @@ const PAYLOAD_KEYS: Record<TelemetryProps['event'], readonly string[]> = {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
 
-type ValidationResult = { ok: true; envelope: TelemetryEnvelope } | { ok: false; status: number; error: string }
+export type ValidateResult = { ok: true; event: ValidatedEvent } | { ok: false; status: number; error: string }
 
 function fail(status: number, error: string): { ok: false; status: number; error: string } {
   return { ok: false, status, error }
@@ -172,12 +148,14 @@ function validatePayload(payload: unknown): { ok: true; payload: TelemetryProps 
   }
 }
 
-/** The hard allowlist: schema version, envelope keys, top-level field shapes,
- *  and (via validatePayload) the event name + its per-event payload keys.
- *  Anything outside this is rejected with 400 — nothing is ever silently
- *  stripped, so a bug that starts sending an extra field is loud, not
- *  quietly swallowed. */
-function validateEnvelope(body: unknown): ValidationResult {
+/** The hard allowlist: envelope keys, top-level field shapes, and (via
+ *  validatePayload) the event name + its per-event payload keys. Anything
+ *  outside this is rejected with 400 — nothing is ever silently stripped,
+ *  so a bug that starts sending an extra field is loud, not quietly
+ *  swallowed. Schema-version and size checks happen one level up, in
+ *  `validateEvent()`, since they apply before this function ever sees an
+ *  object. */
+function validateEnvelope(body: unknown): ValidateResult {
   if (!isRecord(body)) return fail(400, 'invalid envelope')
   if (!hasOnlyKeys(body, ENVELOPE_KEYS)) return fail(400, 'unknown field')
 
@@ -206,7 +184,7 @@ function validateEnvelope(body: unknown): ValidationResult {
 
   return {
     ok: true,
-    envelope: {
+    event: {
       schema: 1,
       anon_id: body.anon_id,
       day: body.day,
@@ -218,100 +196,25 @@ function validateEnvelope(body: unknown): ValidationResult {
   }
 }
 
-function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
-}
-
-/** Fixed-width Analytics Engine row so every event lands in the same column
- *  layout regardless of which payload shape produced it — see schema.sql
- *  for the blob/double index mapping and the week-2 reopen query. Never
- *  reads or stores the caller's IP (no `cf-connecting-ip` access) or any
- *  cookie. */
-function writeAnalytics(env: Env, envelope: TelemetryEnvelope): void {
-  const p = envelope.payload
-  env.EVENTS.writeDataPoint({
-    blobs: [
-      p.event,
-      envelope.anon_id,
-      envelope.day,
-      envelope.app_version,
-      envelope.platform,
-      'nodes_bucket' in p ? p.nodes_bucket : '',
-      'tf_bin' in p ? p.tf_bin : '',
-      'provider' in p ? p.provider : '',
-    ],
-    doubles: [
-      envelope.node_major,
-      'add' in p ? p.add : 0,
-      'modify' in p ? p.modify : 0,
-      'remove' in p ? p.remove : 0,
-      'adopt' in p ? p.adopt : 0,
-      'investigate' in p ? p.investigate : 0,
-    ],
-    indexes: [p.event],
-  })
-}
-
-/** Raw-envelope mirror: one object per event, one NDJSON line each, keyed
- *  under the event's UTC day so `events/YYYY-MM-DD/*.ndjson` (concatenated)
- *  is the long-term system of record once Analytics Engine's ~90-day
- *  retention rolls off — see schema.sql for the duckdb-over-R2 fallback
- *  query. */
-async function mirrorToR2(env: Env, envelope: TelemetryEnvelope): Promise<void> {
-  const key = `events/${envelope.day}/${crypto.randomUUID()}.ndjson`
-  await env.BUCKET.put(key, `${JSON.stringify(envelope)}\n`)
-}
-
-async function handleEvent(request: Request, env: Env): Promise<Response> {
-  const contentLength = request.headers.get('content-length')
-  if (contentLength !== null && Number(contentLength) > MAX_BODY_BYTES) {
-    return json({ error: 'payload too large' }, 413)
-  }
-
-  const rawBody = await request.text()
-  if (new TextEncoder().encode(rawBody).length > MAX_BODY_BYTES) {
-    return json({ error: 'payload too large' }, 413)
+/** Entry point: validates a raw request body string end to end — size,
+ *  JSON well-formedness, then the envelope/payload allowlist above.
+ *
+ *  Size is checked on the decoded body string itself (there is no
+ *  Content-Length-header short-circuit here, unlike the old Cloudflare
+ *  Worker: API Gateway has already buffered the whole body into
+ *  `event.body` before Lambda ever runs, so there is no earlier point at
+ *  which this module could reject a request without reading the body). */
+export function validateEvent(body: string): ValidateResult {
+  if (new TextEncoder().encode(body).length > MAX_BODY_BYTES) {
+    return fail(413, 'payload too large')
   }
 
   let parsed: unknown
   try {
-    parsed = JSON.parse(rawBody)
+    parsed = JSON.parse(body)
   } catch {
-    return json({ error: 'invalid json' }, 400)
+    return fail(400, 'invalid json')
   }
 
-  const result = validateEnvelope(parsed)
-  if (!result.ok) return json({ error: result.error }, result.status)
-
-  // Best-effort, independently: an Analytics Engine or R2 failure never
-  // turns into an error response — "client must never see backpressure"
-  // (docs/SPEC.md, Error handling). Promise.allSettled also converts any
-  // *synchronous* throw from writeDataPoint into a settled rejection, since
-  // it's wrapped in an async arrow here.
-  await Promise.allSettled([
-    (async () => writeAnalytics(env, result.envelope))(),
-    mirrorToR2(env, result.envelope),
-  ])
-
-  return new Response(null, { status: 204 })
-}
-
-export default {
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url)
-
-    if (request.method === 'GET' && url.pathname === '/health') {
-      return json({ status: 'ok' }, 200)
-    }
-
-    if (request.method === 'POST' && url.pathname === '/e') {
-      return handleEvent(request, env)
-    }
-
-    // Everything else — including GET /e, any method on /health, unknown
-    // paths, and CORS preflight OPTIONS requests (no CORS headers are ever
-    // set anywhere in this worker; there is no browser client for /e, only
-    // server-side `fetch` calls from stackcanvas's own TelemetryClient).
-    return json({ error: 'not found' }, 404)
-  },
+  return validateEnvelope(parsed)
 }

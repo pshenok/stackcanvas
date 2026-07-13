@@ -40,9 +40,9 @@ jobs:
           echo "dispatched version matches manifests: $pkg_version"
 
   # The exact same workflow every PR runs (unit matrix, check-plugin,
-  # telemetry-worker, e2e) — see ci.yml's `workflow_call` trigger. Reusing it
-  # rather than copying steps here is what keeps "full CI" from drifting out
-  # of sync between the two workflows.
+  # telemetry-collector, e2e) — see ci.yml's `workflow_call` trigger. Reusing
+  # it rather than copying steps here is what keeps "full CI" from drifting
+  # out of sync between the two workflows.
   verify:
     needs: check-version
     uses: ./.github/workflows/ci.yml
