@@ -1,22 +1,19 @@
-import { execFile } from 'node:child_process'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { extname, join, resolve, sep } from 'node:path'
-import { promisify } from 'node:util'
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import type { ServerType } from '@hono/node-server'
 import { WebSocketServer, WebSocket } from 'ws'
 import { z } from 'zod'
-import chokidar, { type FSWatcher } from 'chokidar'
 import {
-  applyPlan, parseState,
+  composeGraphs,
   type AgentStatus, type GraphModel, type Intent,
+  type ProviderError, type ProviderSnapshot, type SourceProvider,
 } from '@stackcanvas/core'
 import { findPort } from './find-port.js'
 import { IntentQueue } from './intent-queue.js'
 import { nodesBucket, TelemetryClient } from './telemetry.js'
-
-const execFileAsync = promisify(execFile)
+import { TerraformProvider, type TerraformShowRunner } from './providers/terraform.js'
 
 const intentSchema = z.object({
   add: z.array(z.object({
@@ -28,21 +25,6 @@ const intentSchema = z.object({
   modify: z.array(z.object({ address: z.string().min(1), wishes: z.string() })),
   remove: z.array(z.object({ address: z.string().min(1) })),
 })
-
-export type TerraformShowRunner = (cwd: string, planPath?: string) => Promise<string>
-
-export const defaultRunner: TerraformShowRunner = async (cwd, planPath) => {
-  const args = ['show', '-json', ...(planPath ? [planPath] : [])]
-  try {
-    const { stdout } = await execFileAsync('terraform', args, { cwd, maxBuffer: 256 * 1024 * 1024 })
-    return stdout
-  } catch (err) {
-    const e = err as NodeJS.ErrnoException
-    if (e.code === 'ENOENT')
-      throw new Error('terraform binary not found in PATH. Install Terraform or add it to PATH.')
-    throw new Error(`terraform show failed: ${(err as Error).message}`)
-  }
-}
 
 const MIME: Record<string, string> = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
@@ -67,34 +49,43 @@ export interface CanvasServerOptions {
   /** Injectable for tests; defaults to a TelemetryClient reading/writing
    *  ~/.stackcanvas/config.json (or STACKCANVAS_CONFIG_DIR if set). */
   telemetry?: TelemetryClient
+  /** Sugar only: start() calls addProvider() once per entry, in array order,
+   *  after the built-in terraform provider is already live. Equivalent to
+   *  omitting this and calling `canvasServer.addProvider(p)` yourself once
+   *  start() resolves.
+   *  @experimental — the SourceProvider contract may still shift as the
+   *  scanner/reconcile series lands. */
+  extraProviders?: SourceProvider[]
 }
 
 export class CanvasServer {
   readonly dir: string
   private uiDist?: string
-  private run: TerraformShowRunner
   private fixedPort?: number
   private portRangeStart: number
   private graph: GraphModel = { nodes: [], edges: [], groups: [] }
-  private planJson: unknown = null
   private stale: string | null = null
   private httpServer: ServerType | null = null
   private onGraphChange: Array<(g: GraphModel, stale: string | null) => void> = []
   private wss: WebSocketServer | null = null
-  private watcher: FSWatcher | null = null
-  private planPath: string | null = null
-  private refreshTimer: NodeJS.Timeout | null = null
   private intents = new IntentQueue()
   private agentStatus: AgentStatus = 'idle'
   private telemetry: TelemetryClient
+  private tf: TerraformProvider
+  private providers: SourceProvider[]
+  private extraProviders: SourceProvider[]
+  private snapshots = new Map<string, ProviderSnapshot>()
+  private conflicts: { id: string; origin: string }[] = []
 
   constructor(opts: CanvasServerOptions) {
     this.dir = opts.dir
     this.uiDist = opts.uiDist
-    this.run = opts.runTerraformShow ?? defaultRunner
     this.fixedPort = opts.port
     this.portRangeStart = opts.portRangeStart ?? 4680
     this.telemetry = opts.telemetry ?? new TelemetryClient({ appVersion: '0.1.0' })
+    this.tf = new TerraformProvider({ dir: opts.dir, runShow: opts.runTerraformShow })
+    this.providers = [this.tf]
+    this.extraProviders = opts.extraProviders ?? []
     this.subscribe((graph, stale) => this.broadcast({ type: 'graph', graph, stale }))
   }
 
@@ -109,29 +100,59 @@ export class CanvasServer {
     this.broadcast({ type: 'agent_status', status: s })
   }
 
+  /** Kept public, same signature as today. Targets the typed `tf` reference
+   *  directly — plan concepts never leak onto the SourceProvider interface. */
   async loadPlan(path: string): Promise<void> {
-    if (path.endsWith('.json')) this.planJson = JSON.parse(readFileSync(path, 'utf8'))
-    else this.planJson = JSON.parse(await this.run(this.dir, path))
-    this.planPath = path
-    await this.refreshGraph()
+    this.onSnapshot(await this.tf.loadPlan(path))
   }
 
-  private scheduleRefresh(): void {
-    if (this.refreshTimer) clearTimeout(this.refreshTimer)
-    this.refreshTimer = setTimeout(() => {
-      void (async () => {
-        try {
-          const autoPlan = join(this.dir, '.stackcanvas', 'plan.json')
-          if (this.planPath === null && existsSync(autoPlan)) await this.loadPlan(autoPlan)
-          else if (this.planPath?.endsWith('.json') && existsSync(this.planPath))
-            this.planJson = JSON.parse(readFileSync(this.planPath, 'utf8'))
-          await this.refreshGraph()
-        } catch (err) {
-          this.stale = (err as Error).message
-          for (const fn of this.onGraphChange) fn(this.graph, this.stale)
-        }
-      })()
-    }, 300)
+  private recompose(): void {
+    const snaps = this.providers
+      .map(p => this.snapshots.get(p.origin))
+      .filter((s): s is ProviderSnapshot => s !== undefined)
+    const composed = composeGraphs(snaps)
+    this.graph = composed.graph
+    this.stale = composed.stale
+    this.conflicts = composed.conflicts
+    if (this.conflicts.length > 0)
+      console.error(`stackcanvas: dropped id conflicts during compose: ${JSON.stringify(this.conflicts)}`)
+    for (const fn of this.onGraphChange) fn(this.graph, this.stale)
+  }
+
+  private onSnapshot(s: ProviderSnapshot): void {
+    this.snapshots.set(s.origin, s)
+    this.recompose()
+  }
+
+  /** @experimental Registers (or replaces, if `p.origin` is already present)
+   *  a SourceProvider: awaits init(), refreshes it up front when
+   *  `refreshOnStart` is true (mirroring refreshGraph()'s own filter),
+   *  subscribes to watch(), then recomposes so the change — a populated
+   *  graph, or the still-empty last-good graph for a live provider that
+   *  hasn't scanned yet — reaches WS subscribers immediately. */
+  async addProvider(p: SourceProvider): Promise<void> {
+    const existingIdx = this.providers.findIndex(x => x.origin === p.origin)
+    if (existingIdx !== -1) {
+      await this.providers[existingIdx].dispose()
+      this.providers.splice(existingIdx, 1)
+      this.snapshots.delete(p.origin)
+    }
+    await p.init()
+    if (p.refreshOnStart) this.snapshots.set(p.origin, await p.refresh())
+    this.providers.push(p)
+    p.watch(s => this.onSnapshot(s))
+    this.recompose()
+  }
+
+  /** @experimental Disposes and drops `origin` from composition; no-op if
+   *  it isn't currently registered. */
+  async removeProvider(origin: string): Promise<void> {
+    const idx = this.providers.findIndex(p => p.origin === origin)
+    if (idx === -1) return
+    const [p] = this.providers.splice(idx, 1)
+    await p.dispose()
+    this.snapshots.delete(origin)
+    this.recompose()
   }
 
   private broadcast(msg: unknown): void {
@@ -140,17 +161,17 @@ export class CanvasServer {
       if (client.readyState === WebSocket.OPEN) client.send(data)
   }
 
+  /** Kept public name/signature — tests and callers rely on it. Refreshes
+   *  only providers where `refreshOnStart` is true; a `refreshOnStart: false`
+   *  provider (e.g. a future live-scan source) is skipped here — its
+   *  snapshot is only ever surfaced via addProvider() or an explicit,
+   *  provider-targeted `refresh({force: true})` — so this never triggers an
+   *  implicit scan-like call. */
   async refreshGraph(): Promise<void> {
-    try {
-      const stateJson = JSON.parse(await this.run(this.dir))
-      let g = parseState(stateJson)
-      if (this.planJson) g = applyPlan(g, this.planJson)
-      this.graph = g
-      this.stale = null
-    } catch (err) {
-      this.stale = (err as Error).message
-    }
-    for (const fn of this.onGraphChange) fn(this.graph, this.stale)
+    const targets = this.providers.filter(p => p.refreshOnStart)
+    const snaps = await Promise.all(targets.map(p => p.refresh()))
+    for (const s of snaps) this.snapshots.set(s.origin, s)
+    this.recompose()
   }
 
   protected buildApp(): Hono {
@@ -180,7 +201,21 @@ export class CanvasServer {
       return next()
     })
     app.get('/api/graph', c => c.json(this.graph))
-    app.get('/api/meta', c => c.json({ dir: this.dir, stale: this.stale }))
+    app.get('/api/meta', c => c.json({
+      dir: this.dir,
+      stale: this.stale,
+      providers: this.providers.map(p => {
+        const snap = this.snapshots.get(p.origin)
+        const entry: {
+          origin: string; label: string; stale: string | null
+          scannedAt?: string; errors?: ProviderError[]
+        } = { origin: p.origin, label: p.label, stale: snap?.stale ?? null }
+        if (snap?.meta?.scannedAt !== undefined) entry.scannedAt = snap.meta.scannedAt
+        if (snap?.meta?.errors !== undefined) entry.errors = snap.meta.errors
+        return entry
+      }),
+      conflicts: this.conflicts,
+    }))
     app.post('/api/intent', async c => {
       const parsed = intentSchema.safeParse(await c.req.json().catch(() => null))
       if (!parsed.success) return c.json({ error: 'invalid intent' }, 400)
@@ -258,6 +293,7 @@ export class CanvasServer {
   async start(): Promise<{ port: number; url: string }> {
     if (this.httpServer) throw new Error('CanvasServer already started')
     if (!existsSync(this.dir)) throw new Error(`Directory not found: ${this.dir}`)
+    await this.tf.init()
     await this.refreshGraph()
     const explicitPort = this.fixedPort !== undefined
     let port = this.fixedPort ?? (await findPort(this.portRangeStart))
@@ -287,39 +323,30 @@ export class CanvasServer {
         })
       } else socket.destroy()
     })
-    // chokidar v4 dropped glob support, so watch `dir` recursively and filter
-    // in `ignored` instead of passing glob patterns (which silently match nothing).
-    const planPath = join(this.dir, '.stackcanvas', 'plan.json')
-    this.watcher = chokidar.watch(this.dir, {
-      ignoreInitial: true,
-      ignored: (path, stats) => {
-        if (path.includes(`${sep}.terraform${sep}`) || path.endsWith(`${sep}.terraform`)) return true
-        if (stats && !stats.isDirectory() && !path.endsWith('.tfstate') && path !== planPath) return true
-        return false
-      },
-    })
-    this.watcher.on('all', () => this.scheduleRefresh())
-    // inotify (Linux) delivers no events for writes that land before the
-    // watcher is ready; without this await, changes made right after start()
-    // are silently missed there (macOS FSEvents masks the race).
-    await new Promise<void>(resolve => this.watcher!.once('ready', () => resolve()))
+    // The chokidar watcher itself (incl. the ready-await) already ran inside
+    // tf.init() above; this just arms delivery of future debounced snapshots.
+    this.tf.watch(s => this.onSnapshot(s))
     // One canvas_opened per successful start() — covers both `stackcanvas
     // serve` and the MCP open_canvas path (which calls start() once per new
     // canvas and never re-calls it for a reused one, since start() throws on
     // a second call). tf_bin degrades to 'unknown' until resolveTfBinary /
-    // TerraformProvider ships with the source-provider section.
+    // TerraformProvider ships with the OpenTofu-detection increment.
     this.telemetry.emit({
       event: 'canvas_opened',
       nodes_bucket: nodesBucket(this.graph.nodes.length),
       tf_bin: 'unknown',
     })
+    // Pure sugar over addProvider(): a refreshOnStart provider is refreshed
+    // via addProvider's own conditional refresh, a refreshOnStart:false one
+    // (e.g. a future live-scan source) registers with an empty graph and
+    // waits for an explicit trigger — identical to calling addProvider()
+    // directly once start() resolves.
+    await Promise.all(this.extraProviders.map(p => this.addProvider(p)))
     return { port, url: `http://127.0.0.1:${port}` }
   }
 
   async stop(): Promise<void> {
-    if (this.refreshTimer) clearTimeout(this.refreshTimer)
-    await this.watcher?.close()
-    this.watcher = null
+    await Promise.all(this.providers.map(p => p.dispose()))
     for (const c of this.wss?.clients ?? []) c.terminate()
     this.wss?.close()
     this.wss = null
