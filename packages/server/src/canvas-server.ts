@@ -228,6 +228,10 @@ export class CanvasServer {
       },
     })
     this.watcher.on('all', () => this.scheduleRefresh())
+    // inotify (Linux) delivers no events for writes that land before the
+    // watcher is ready; without this await, changes made right after start()
+    // are silently missed there (macOS FSEvents masks the race).
+    await new Promise<void>(resolve => this.watcher!.once('ready', () => resolve()))
     return { port, url: `http://127.0.0.1:${port}` }
   }
 
