@@ -1,7 +1,7 @@
 {
   "name": "stackcanvas",
   "description": "Live infrastructure canvas: watch your agent build Terraform, drag new resources, the agent writes the HCL. This plugin wires it into Claude Code.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": {
     "name": "kp",
     "url": "https://github.com/pshenok"
