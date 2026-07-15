@@ -188,6 +188,7 @@ Written kill/commit gates — with this many parallel bets, the scarcest resourc
 **Continuous tripwires (act immediately, not at quarterly review):**
 - Anthropic/Cursor changelog mentions a native visual/infra pane, or HashiCorp bundles a free local graph UI with the Terraform MCP server → reposition decision within 2 weeks (integration/acquisition posture is a defined win condition for a solo OSS project)
 - Pulumi Neo announces a free tier or visual console → same
+- IDP players (OpenChoreo/WSO2, Backstage ecosystem) ship a Terraform-layer live canvas or a lightweight local mode → reassess overlap (today they are K8s app-delivery platforms for org-scale platform teams — our anti-persona — with their own agents, not BYO-agent supervision; checked 2026-07-13)
 - **Breakage tax:** ≥2 releases forced purely by Claude Code/MCP changes in any 3-month window → quantified platform risk; revisit the adapter boundary
 - **Founder hours:** <5 logged hrs/week for a month → the project is dead regardless of metrics; call it honestly (base-rate killer at ~60% likelihood per pre-mortem)
 - **Trust incident:** any viral "agent destroyed prod" story (anyone's agent) → lead all marketing with the safety interlock + audit log within the same week
